@@ -1,0 +1,250 @@
+app:
+  description: AI 健康咨询场景分类器 (LLM + code 6-layer safety net)
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  mode: workflow
+  name: AI_health_consultant_v2
+use_icon_as_answer_icon: false
+kind: app
+version: 0.1.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - JPG
+      - PNG
+      - JPEG
+      - WEBP
+      - PDF
+      allowed_file_types:
+      - image
+      - document
+      enabled: false
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 50
+        image_file_size_limit: 50
+        video_file_size_limit: 50
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - remote_url
+        - local_file
+    handoff_to_human:
+      enabled: false
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    nodes:
+    - id: '4001'
+      data:
+        type: start
+        title: 开始
+        variables:
+        - variable: text
+          label: 用户文本
+          type: paragraph
+          required: true
+          max_length: 2000
+        - variable: has_image
+          label: 是否有图片
+          type: boolean
+          required: true
+          default: false
+        - variable: answers
+          label: 问卷答案 JSON
+          type: paragraph
+          required: true
+          default: ''
+      position:
+        x: -180.0
+        y: 0.0
+      positionAbsolute:
+        x: -180.0
+        y: 0.0
+      width: 244
+      height: 54
+      zIndex: 0
+      sourcePosition: right
+      targetPosition: left
+      selected: false
+      draggable: true
+    - id: '4080'
+      data:
+        type: llm
+        title: scene_classifier_LLM
+        model:
+          provider: langgenius/doubao/doubao-seed-2-0-lite
+          name: doubao-seed-2-0-lite
+          mode: chat
+          completion_params:
+            temperature: 0.2
+            max_tokens: 512
+            response_format:
+              type: json_object
+        prompt_template:
+        - role: system
+          text: "你是 AI 健康咨询的场景分类器。给定用户输入(text + image + answers),\n将其归入以下三类之一:\n\n  - \"report\":  涉及体检/检查报告、医学检查指标值、报告解读\n  - \"symptom\": 涉及身体不适、症状描述(疼痛/酸胀/红肿等)\n  - \"product\": 涉及产品咨询、营养品选择、怎么买/推荐\n\n【关键规则】\n\n【重要】report 强信号词(必须判定为 report,不要被\"我56岁/我女性\"等描述带偏):\n- 出现具体医学指标数值: T值 / T 值 / DXA / 骨密度 / 骨量 / 25-OH / 维生素 D / 血钙 / 碱性磷酸酶 / 骨钙素\n- 出现\"体检报告/我的报告/检查报告/化验单/检验单\"等报告类词\n\n【边界 case】\n- 仅上传图片(无文字) → report (用户大概率是来上传报告)\n- 问候语(\"你好/在吗\") → symptom (默认场景),confidence 给 0.3\n- 否定句(\"我腿不疼/我没有不舒服\") → symptom (用户提到身体部位),confidence 给 0.4\n- 报告解读问题(\"T值-2.5 是什么意思\") → report\n\n【输出格式 — 严格 JSON,不要任何额外文字】\n{\n  \"scene\": \"report\" | \"symptom\" | \"product\",\n  \"confidence\": 0.0-1.0,\n  \"reasoning\": \"一句话说明判定理由\"\n}\n"
+        - role: user
+          text: '用户输入:
+
+            - text: {{#4001.text#}}
+
+            - has_image: {{#4001.has_image#}}
+
+            - answers: {{#4001.answers#}}
+
+
+            请输出 JSON 判定。'
+        context:
+          enabled: false
+          variable_selector: []
+        vision:
+          enabled: false
+      position:
+        x: 100.0
+        y: 0.0
+      positionAbsolute:
+        x: 100.0
+        y: 0.0
+      width: 244
+      height: 54
+      zIndex: 0
+      sourcePosition: right
+      targetPosition: left
+      selected: false
+      draggable: true
+    - id: '4002'
+      data:
+        type: code
+        title: scene_classifier_safety_net
+        code: "\nimport json\nimport re\n\n_REPORT_KEYWORDS = [\n    \"T值\", \"T 值\", \"DXA\", \"骨密度\", \"骨量\", \"骨量减少\", \"骨质疏松\",\n    \"25-OH\", \"维生素 D\", \"血钙\", \"碱性磷酸酶\", \"骨钙素\",\n    \"体检报告\", \"我的报告\", \"检查报告\", \"化验单\", \"检验单\",\n    \"T-score\", \"T score\", \"骨扫描\",\n]\n_SYMPTOM_KEYWORDS = [\n    \"疼\", \"痛\", \"酸\", \"胀\", \"麻\", \"木\", \"痒\", \"烧\", \"凉\", \"不适\",\n    \"肿胀\", \"红肿\", \"发热\", \"抽筋\", \"僵硬\", \"活动受限\",\n    \"胸闷\", \"气短\", \"头晕\", \"恶心\", \"呕吐\",\n]\n_PRODUCT_KEYWORDS = [\n    \"补钙\", \"产品\", \"推荐\", \"哪个好\", \"怎么选\", \"营养品\",\n    \"钙片\", \"氨糖\", \"软骨素\", \"维生素D\", \"蛋白粉\",\n]\n_DANGER_KEYWORDS = [\n    \"突然肿胀\", \"肿胀发热\", \"按压疼\", \"胸闷气短\",\n    \"夜间痛\", \"静息痛\", \"红肿热痛\",\n]\n\n_ANSWERS_TAGS = {\n    \"menopause\": \"report\",\n    \"tvalue_lumbar\": \"report\",\n    \"sudden_severe\": \"symptom\",\n    \"trauma\": \"symptom\",\n    \"location\": \"symptom\",\n    \"duration\": \"symptom\",\n    \"trigger\": \"symptom\",\n    \"intensity\": \"symptom\",\n\
+          \    \"age\": \"report\",\n    \"gender\": \"report\",\n}\n\n\ndef _parse_llm(llm_text: str) -> dict:\n    if not llm_text:\n        return {}\n    try:\n        return json.loads(llm_text)\n    except Exception:\n        pass\n    m = re.search(r\"\\{[^{}]*\\}\", llm_text, re.DOTALL)\n    if m:\n        try:\n            return json.loads(m.group(0))\n        except Exception:\n            pass\n    m = re.search(r\"\\{.*\\}\", llm_text, re.DOTALL)\n    if m:\n        try:\n            return json.loads(m.group(0))\n        except Exception:\n            pass\n    return {}\n\n\ndef _has_any(text: str, keywords: list[str]) -> bool:\n    return any(k in text for k in keywords)\n\n\ndef _answers_priority(answers: str):\n    if not answers:\n        return None\n    try:\n        a = json.loads(answers)\n    except Exception:\n        return None\n    if not isinstance(a, dict):\n        return None\n    for key in a:\n        if key in _ANSWERS_TAGS:\n            return _ANSWERS_TAGS[key],\
+          \ 0.85\n    return None\n\n\ndef main(llm_text: str = \"\", text: str = \"\", has_image: bool = False, answers: str = \"\") -> dict:\n    text = (text or \"\").strip()\n    has_image = bool(has_image)\n\n    ans = _answers_priority(answers)\n    if ans is not None:\n        scene, conf = ans\n        return {\n            \"scene\": scene,\n            \"scene_confidence\": conf,\n            \"reasoning\": \"based on questionnaire answers\",\n            \"_source\": \"answers\",\n        }\n\n    llm = _parse_llm(llm_text)\n    llm_scene = llm.get(\"scene\", \"\")\n    llm_conf = float(llm.get(\"confidence\", 0.0) or 0.0)\n\n    if llm_scene in (\"report\", \"symptom\", \"product\") and llm_conf >= 0.5:\n        return {\n            \"scene\": llm_scene,\n            \"scene_confidence\": llm_conf,\n            \"reasoning\": llm.get(\"reasoning\", \"from LLM\"),\n            \"_source\": \"llm\",\n        }\n\n    if not text and has_image:\n        return {\n            \"\
+          scene\": \"report\",\n            \"scene_confidence\": 0.7,\n            \"reasoning\": \"user uploaded an image (likely a report)\",\n            \"_source\": \"code-image-only\",\n        }\n    if not text and not has_image:\n        return {\n            \"scene\": \"symptom\",\n            \"scene_confidence\": 0.2,\n            \"reasoning\": \"no input — default to symptom\",\n            \"_source\": \"code-empty\",\n        }\n\n    if llm_scene in (\"report\", \"symptom\", \"product\"):\n        keyword_map = {\n            \"report\": _REPORT_KEYWORDS,\n            \"symptom\": _SYMPTOM_KEYWORDS,\n            \"product\": _PRODUCT_KEYWORDS,\n        }\n        if _has_any(text, keyword_map[llm_scene]):\n            return {\n                \"scene\": llm_scene,\n                \"scene_confidence\": max(llm_conf, 0.55),\n                \"reasoning\": llm.get(\"reasoning\", \"from LLM hint + keyword confirm\"),\n                \"_source\": \"llm+keyword\",\n     \
+          \       }\n\n    scores = {\n        \"report\": sum(1 for k in _REPORT_KEYWORDS if k in text),\n        \"symptom\": sum(1 for k in _SYMPTOM_KEYWORDS if k in text),\n        \"product\": sum(1 for k in _PRODUCT_KEYWORDS if k in text),\n    }\n    best_scene = max(scores, key=lambda k: scores[k])\n    best_score = scores[best_scene]\n    if best_score > 0:\n        return {\n            \"scene\": best_scene,\n            \"scene_confidence\": min(0.45 + 0.1 * best_score, 0.85),\n            \"reasoning\": f\"keyword score: {scores}\",\n            \"_source\": \"keyword\",\n        }\n\n    if _has_any(text, _DANGER_KEYWORDS):\n        return {\n            \"scene\": \"symptom\",\n            \"scene_confidence\": 0.9,\n            \"risk_level\": \"urgent\",\n            \"reasoning\": \"danger signal keyword matched\",\n            \"_source\": \"danger\",\n        }\n\n    if llm_scene in (\"report\", \"symptom\", \"product\"):\n        return {\n            \"scene\": llm_scene,\n\
+          \            \"scene_confidence\": 0.3,\n            \"reasoning\": \"no keyword match; using LLM hint with low conf\",\n            \"_source\": \"llm-low\",\n        }\n    return {\n        \"scene\": \"symptom\",\n        \"scene_confidence\": 0.2,\n        \"reasoning\": \"no signal at all; defaulting to symptom\",\n        \"_source\": \"default\",\n    }\n"
+        code_language: python3
+        variables:
+        - variable: llm_text
+          value_selector:
+          - '4080'
+          - text
+        - variable: text
+          value_selector:
+          - '4001'
+          - text
+        - variable: has_image
+          value_selector:
+          - '4001'
+          - has_image
+        - variable: answers
+          value_selector:
+          - '4001'
+          - answers
+        outputs:
+          type: object
+          properties:
+          - value:
+              type: string
+            key: scene
+          - value:
+              type: number
+            key: scene_confidence
+          - value:
+              type: string
+            key: reasoning
+          additionalProperties: true
+      position:
+        x: 380.0
+        y: 0.0
+      positionAbsolute:
+        x: 380.0
+        y: 0.0
+      width: 244
+      height: 54
+      zIndex: 0
+      sourcePosition: right
+      targetPosition: left
+      selected: false
+      draggable: true
+    - id: '4099'
+      data:
+        type: end
+        title: 结束
+        outputs:
+        - variable: output
+          value_selector:
+          - '4002'
+          - scene
+        - variable: confidence
+          value_selector:
+          - '4002'
+          - scene_confidence
+      position:
+        x: 660.0
+        y: 0.0
+      positionAbsolute:
+        x: 660.0
+        y: 0.0
+      width: 244
+      height: 54
+      zIndex: 0
+      sourcePosition: right
+      targetPosition: left
+      selected: false
+      draggable: true
+    edges:
+    - id: edge-4001-4080-9909f2
+      source: '4001'
+      target: '4080'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        isInIteration: false
+        sourceType: downstream
+        targetType: upstream
+      zIndex: 0
+      selected: false
+    - id: edge-4080-4002-b9369f
+      source: '4080'
+      target: '4002'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        isInIteration: false
+        sourceType: downstream
+        targetType: upstream
+      zIndex: 0
+      selected: false
+    - id: edge-4002-4099-9cb3a2
+      source: '4002'
+      target: '4099'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        isInIteration: false
+        sourceType: downstream
+        targetType: upstream
+      zIndex: 0
+      selected: false
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dify-workflow-toolkit"
+version = "0.1.0"
+description = "Build, validate, deploy and verify Dify workflow DSL files end-to-end over SSH."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "AI Customer Team" },
+]
+dependencies = [
+    "PyYAML>=6.0",
+    "paramiko>=3.0",
+    "psycopg2-binary>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+dify-workflow-toolkit = "dify_workflow_toolkit.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dify_workflow_toolkit*"]
+
+[tool.setuptools.package-data]
+dify_workflow_toolkit = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"

@@ -1,0 +1,22 @@
+# {{ name }}
+
+{% if summary %}> {{ summary }}
+{% endif %}
+{% if sections %}
+{% for sec in sections %}
+## {{ sec.title }}
+
+{{ sec.content }}
+
+{% endfor %}
+{% endif %}
+{% if examples %}
+## 示例
+
+{% for ex in examples %}
+- {{ ex }}
+{% endfor %}
+{% endif %}
+## 检索关键词
+
+{{ keywords | join(", ") }}

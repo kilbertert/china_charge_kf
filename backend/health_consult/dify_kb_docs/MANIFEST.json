@@ -1,0 +1,81 @@
+{
+  "dataset_questionnaire": {
+    "name": "AI健康咨询-量表库",
+    "documents": [
+      {
+        "file": "questionnaire_bone_density_v1.md",
+        "doc_id": "bone_density_v1"
+      },
+      {
+        "file": "questionnaire_leg_pain_v1.md",
+        "doc_id": "leg_pain_v1"
+      }
+    ]
+  },
+  "dataset_solution": {
+    "name": "AI健康咨询-方案库",
+    "documents": [
+      {
+        "file": "solution_menopause_related.md",
+        "doc_id": "menopause_related_v1",
+        "tag": "menopause_related"
+      },
+      {
+        "file": "solution_vitamin_d_deficient.md",
+        "doc_id": "vitamin_d_deficient_v1",
+        "tag": "vitamin_d_deficient"
+      },
+      {
+        "file": "solution_calcium_protein_deficient.md",
+        "doc_id": "calcium_protein_deficient_v1",
+        "tag": "calcium_protein_deficient"
+      },
+      {
+        "file": "solution_exercise_deficient.md",
+        "doc_id": "exercise_deficient_v1",
+        "tag": "exercise_deficient"
+      },
+      {
+        "file": "solution_medication_related.md",
+        "doc_id": "medication_related_v1",
+        "tag": "medication_related"
+      },
+      {
+        "file": "solution_fracture_high_risk.md",
+        "doc_id": "fracture_high_risk_v1",
+        "tag": "fracture_high_risk"
+      },
+      {
+        "file": "solution_muscle_strain.md",
+        "doc_id": "muscle_strain_v1",
+        "tag": "muscle_strain"
+      },
+      {
+        "file": "solution_knee_degeneration.md",
+        "doc_id": "knee_degeneration_v1",
+        "tag": "knee_degeneration"
+      },
+      {
+        "file": "solution_lumbar_radiculopathy.md",
+        "doc_id": "lumbar_radiculopathy_v1",
+        "tag": "lumbar_radiculopathy"
+      },
+      {
+        "file": "solution_gout_inflammatory.md",
+        "doc_id": "gout_inflammatory_v1",
+        "tag": "gout_inflammatory"
+      },
+      {
+        "file": "solution_vascular_risk.md",
+        "doc_id": "vascular_risk_v1",
+        "tag": "vascular_risk"
+      },
+      {
+        "file": "solution_osteoporosis_risk.md",
+        "doc_id": "osteoporosis_risk_v1",
+        "tag": "osteoporosis_risk"
+      }
+    ]
+  },
+  "note": "Agent 1 在 Dify 控制台创建 2 个知识库,把上述文件上传。检索模式建议选 'economic' 或 'full_text'。"
+}

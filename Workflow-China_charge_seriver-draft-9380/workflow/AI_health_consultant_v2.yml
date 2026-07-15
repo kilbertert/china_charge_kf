@@ -1,0 +1,2246 @@
+app:
+  description: 销售小程序 AI 健康咨询模块 v2 - 三场景分流(体检报告解读 / 症状咨询 / 健康产品问答),结构化输出 SceneResponse
+    JSON。 AI 不做诊断、不开药、不承诺疗效;场景二强制危险信号识别;场景三走知识库。 节点 ID 范围 4001-4099,占位 dataset_id
+    需部署时替换。
+  icon: 🩺
+  icon_background: '#E8F5E9'
+  icon_type: emoji
+  mode: workflow
+  name: AI_health_consultant_v2
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/volcengine_maas:0.0.51@10500d8c8e350242a0db2dda11c276685ab947ec0b41f9b94ea73c2919aacab7
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/tongyi:0.2.0@4e5891a2f4fff19b005a662a1fadff0e56b62b2dd1b4a93bdffae83c5b38b05e
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .PDF
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: true
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      config:
+        inputs:
+          enabled: false
+        keywords: []
+        outputs:
+          enabled: false
+      enabled: false
+      type: keywords
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: edge-4001-4080
+      source: '4001'
+      sourceHandle: source
+      target: '4080'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: code
+      id: edge-4080-4002
+      source: '4080'
+      sourceHandle: source
+      target: '4002'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: if-else
+      id: edge-4002-4003
+      source: '4002'
+      sourceHandle: source
+      target: '4003'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: code
+      id: edge-4010-4011
+      source: '4010'
+      sourceHandle: source
+      target: '4011'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: variable-aggregator
+      id: edge-4011-4090
+      source: '4011'
+      sourceHandle: source
+      target: '4090'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: llm
+      id: edge-4003-4020
+      source: '4003'
+      sourceHandle: symptom
+      target: '4020'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: code
+      id: edge-4020-4021
+      source: '4020'
+      sourceHandle: source
+      target: '4021'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: if-else
+      id: edge-4021-4022
+      source: '4021'
+      sourceHandle: source
+      target: '4022'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: code
+      id: edge-4022-4023
+      source: '4022'
+      sourceHandle: 'true'
+      target: '4023'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: variable-aggregator
+      id: edge-4023-4090
+      source: '4023'
+      sourceHandle: source
+      target: '4090'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: code
+      id: edge-4022-4024
+      source: '4022'
+      sourceHandle: 'false'
+      target: '4024'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: code
+      id: edge-4024-4025
+      source: '4024'
+      sourceHandle: source
+      target: '4025'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: knowledge-retrieval
+      id: edge-4003-4030
+      source: '4003'
+      sourceHandle: product
+      target: '4030'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: edge-4030-4031
+      source: '4030'
+      sourceHandle: source
+      target: '4031'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: code
+      id: edge-4031-4032
+      source: '4031'
+      sourceHandle: source
+      target: '4032'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: variable-aggregator
+      id: edge-4032-4090
+      source: '4032'
+      sourceHandle: source
+      target: '4090'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: variable-aggregator
+        targetType: end
+      id: edge-4090-4099
+      source: '4090'
+      sourceHandle: source
+      target: '4099'
+      targetHandle: target
+      type: custom
+    - source: '4025'
+      target: '4090'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data: null
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: if-else
+      id: edge-4003-4105
+      source: '4003'
+      sourceHandle: report
+      target: '4105'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: code
+      id: edge-4002-4104
+      source: '4002'
+      sourceHandle: source
+      target: '4104'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: if-else
+      id: edge-4104-4105
+      source: '4104'
+      sourceHandle: source
+      target: '4105'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: llm
+      id: edge-4105-4010
+      source: '4105'
+      sourceHandle: 'false'
+      target: '4010'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: code
+      id: edge-4105-4120
+      source: '4105'
+      sourceHandle: 'true'
+      target: '4120'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: code
+      id: edge-4120-4121
+      source: '4120'
+      sourceHandle: source
+      target: '4121'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: variable-aggregator
+      id: edge-4121-4090
+      source: '4121'
+      sourceHandle: source
+      target: '4090'
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        desc: 接收客户文本 + 可选图片/答案 JSON
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: input_text
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: input_text
+        - label: input_answers
+          max_length: 4000
+          options: []
+          required: false
+          type: text-input
+          variable: input_answers
+        - label: input_session_id
+          max_length: 64
+          options: []
+          required: false
+          type: text-input
+          variable: input_session_id
+        - label: input_language
+          max_length: 16
+          options: []
+          required: false
+          type: text-input
+          variable: input_language
+        - allowed_file_extensions:
+          - .jpg
+          - .jpeg
+          - .png
+          - .webp
+          - .gif
+          - .pdf
+          allowed_file_types:
+          - image
+          allowed_file_upload_methods:
+          - local_file
+          - remote_url
+          label: input_image
+          required: false
+          type: file-list
+          variable: input_image
+      height: 230
+      id: '4001'
+      position:
+        x: 0
+        y: 200
+      positionAbsolute:
+        x: 0
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: LLM 语义理解:基于 input_text 和 image 上下文判断 scene (report/symptom/product)
+        model:
+          completion_params:
+            max_tokens: 256
+            temperature: 0
+            top_p: 1
+          mode: chat
+          name: Doubao-Seed-2.0-lite
+          provider: langgenius/volcengine_maas/volcengine_maas
+        prompt_template:
+        - id: sys-scene-classify
+          role: system
+          text: |-
+            你是健康咨询工作流的场景分流器,只负责判断当前用户输入属于哪个 scene,不要做后续方案判断。
+
+            你必须只在以下三个场景中选择一个:
+            1. report: 用户在提供、上传、粘贴、解读、分析某份体检/检查/化验/影像/骨密度报告
+            2. symptom: 用户在描述自己当前的不适、疼痛、异常感觉、健康担忧,希望得到分诊或下一步建议
+            3. product: 用户在咨询健康产品/营养补充剂/保健品的成分、用法、适用人群、对比、价格、注意事项
+
+            规则:
+            - 只判断当前轮主意图,不要根据下游问卷或既往流程状态补全场景
+            - 用户上传图片但几乎没有文字时,如果更像报告/检查单,优先判 report
+            - 既问症状又问产品时,按用户当前最主要诉求分类
+            - 无法明确判断时,优先 symptom,但 confidence 要低
+
+            输出必须是 JSON,不要输出 markdown:
+            {"scene":"report|symptom|product","confidence":0.0,"reasoning":"一句话依据"}
+        - id: user-scene-classify
+          role: user
+          text: '{{#4001.input_text#}}'
+        selected: false
+        title: scene_classifier_LLM
+        type: llm
+        vision:
+          configs:
+            detail: low
+            variable_selector:
+            - '4001'
+            - input_image
+          enabled: true
+      height: 132
+      id: '4080'
+      position:
+        x: 160
+        y: 200
+      positionAbsolute:
+        x: 160
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+          import re
+
+          ALLOWED_SCENES = {"report", "symptom", "product"}
+          def _parse_json(text):
+              raw = (text or "").strip()
+              if not raw:
+                  return {}
+              try:
+                  if raw.startswith("{"):
+                      return json.loads(raw)
+              except Exception:
+                  pass
+              match = re.search(r"\{[\s\S]*\}", raw)
+              if match:
+                  try:
+                      return json.loads(match.group(0))
+                  except Exception:
+                      return {}
+              return {}
+
+
+          def main(llm_text: str, text: str, has_image: bool, answers: str) -> dict:
+              raw_text = (text or "").strip()
+              data = _parse_json(llm_text)
+              scene = str(data.get("scene", "")).strip().lower()
+              confidence = data.get("confidence", 0.0)
+              try:
+                  confidence = float(confidence)
+              except Exception:
+                  confidence = 0.0
+              confidence = max(0.0, min(1.0, confidence))
+
+              if scene in ALLOWED_SCENES:
+                  return {"scene": scene, "scene_confidence": confidence}
+
+              if has_image and not raw_text:
+                  return {"scene": "report", "scene_confidence": 0.6}
+              if not raw_text and not has_image:
+                  return {"scene": "symptom", "scene_confidence": 0.2}
+
+              # 安全兜底: 无法判断时只返回默认场景,不在这里做任何病因/量表决策。
+              return {"scene": "symptom", "scene_confidence": 0.35}
+        desc: 只负责 scene 分流,不读取问卷答案做下游决策
+        code_language: python3
+        outputs:
+          scene:
+            type: string
+            children: null
+          scene_confidence:
+            type: number
+            children: null
+        selected: false
+        title: scene_classifier_v2
+        type: code
+        variables:
+        - value_selector:
+          - '4080'
+          - text
+          variable: llm_text
+        - value_selector:
+          - '4001'
+          - input_text
+          variable: text
+        - value_selector:
+          - '4001'
+          - input_image
+          variable: has_image
+        - value_selector:
+          - '4001'
+          - input_answers
+          variable: answers
+      height: 92
+      id: '4002'
+      position:
+        x: 320
+        y: 200
+      positionAbsolute:
+        x: 320
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: report
+          conditions:
+          - comparison_operator: is
+            id: cond-report
+            value: report
+            varType: string
+            variable_selector:
+            - '4002'
+            - scene
+          id: report
+          logical_operator: and
+        - case_id: symptom
+          conditions:
+          - comparison_operator: is
+            id: cond-symptom
+            value: symptom
+            varType: string
+            variable_selector:
+            - '4002'
+            - scene
+          id: symptom
+          logical_operator: and
+        - case_id: product
+          conditions:
+          - comparison_operator: is
+            id: cond-product
+            value: product
+            varType: string
+            variable_selector:
+            - '4002'
+            - scene
+          id: product
+          logical_operator: and
+        desc: 按 scene 分流到三场景
+        logical_operator: and
+        selected: false
+        title: 路由-按scene
+        type: if-else
+      height: 168
+      id: '4003'
+      position:
+        x: 640
+        y: 200
+      positionAbsolute:
+        x: 640
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 从文本/图片提取骨密度指标,输出 JSON
+        model:
+          completion_params:
+            max_tokens: 2048
+            temperature: 0.2
+            top_p: 1
+          mode: chat
+          name: Doubao-Seed-2.0-lite
+          provider: langgenius/volcengine_maas/volcengine_maas
+        prompt_template:
+        - id: sys-scene1
+          role: system
+          text: "你是销售小程序 AI 健康初筛助手,负责解析客户上传/粘贴的骨密度(DXA)报告内容。\n\n# 你的边界\n- 只做指标提取和风险初筛。\n\
+            - 不做疾病诊断、不开药、不承诺疗效、不推荐产品。\n- 输出语言: {{#4001.input_language#}},默认简体中文。\n\
+            \n# 严禁行为(违反任意一条 = 整段输出作废,必须返回 dataComplete: false)\n- 严禁编造任何医学指标数值。客户没明确给出的指标,不要写进\
+            \ metrics。\n- 严禁从图片的\"任何数字\"(页码、日期、表格背景、UI 文字)臆造 T 值或骨密度值。\n- 严禁编造 oneLineConclusion\
+            \ 的具体数值(如\"骨密度下降 X%\")。\n- 严禁在 problemPriority 中虚构风险方向(如\"维生素D不足\"\"尿酸偏高\"\
+            ——客户没提供数据就不要写)。\n- 如果客户输入里没有出现可识别的骨密度指标数值,必须返回 metrics: [] 和 dataComplete:\
+            \ false,不能强行编造。\n\n# 图片识别规则(关键!)\n- 客户上传的图片必须是清晰可辨的骨密度 DXA 检测报告,包含明确的检测项目名称(如\"\
+            腰椎 L1-L4 T值\"\"股骨颈 T值\")和具体数值。\n- 如果图片是:\n  * 与医疗无关的内容(UI 设计图、风景照、聊天截图、文档封面等)\n\
+            \  * 模糊、字迹不清、关键数值不可辨认\n  * 体检报告封面而非正文(无 T 值、Z 值等数据)\n  * 其他非 DXA 报告(化验单、超声报告、CT\
+            \ 报告等)\n  则必须返回 dataComplete: false,metrics: [],不要试图从图片里\"猜\"出 T 值。\n\
+            - 永远不要\"宁可错杀不要放过\"——识别不出就是识别不出,空着比瞎猜好。\n\n# 文本识别规则(同样关键!)\n- 客户文本中必须出现具体的\
+            \ T 值数字(如\"-2.1\"\"-0.8\"),才能写入 metrics。\n- 仅出现\"医生说 T 值不正常\"\"骨质疏松\"\"\
+            骨量减少\"等描述性词语而**没有具体数字**,不算有数据。\n- 仅出现\"腰椎\"\"股骨颈\"等部位名称而**没有数值**,也不算有数据。\n\
+            - 仅出现\"DXA 报告\"\"骨密度报告\"等关键词而**没有具体 T 值数字**,不算有数据。\n- 在以上\"无数字\"场景下,必须返回\
+            \ dataComplete: false,metrics: []。\n\n# 必须以 JSON 输出(只输出 JSON,不要 markdown\
+            \ 包裹、不要解释文字)\n输出 schema:\n{\n  \"confidence\": \"high\" | \"medium\" |\
+            \ \"low\",  // ← 必须填写,你对自己识别的把握程度\n  \"dataComplete\": true | false, \
+            \ // ← 仅当 confidence=high 且 metrics 非空时才填 true\n  \"metrics\": [\n   \
+            \ {\"name\": \"腰椎 L1-L4 T值\", \"value\": -2.1, \"unit\": \"\"}\n  ],\n\
+            \  \"oneLineConclusion\": \"...\",\n  \"problemPriority\": [\n    {\"\
+            rank\": 1, \"name\": \"骨密度下降\", \"level\": \"中高\"}\n  ]\n}\n\n# confidence\
+            \ 自我评估规则\n- confidence=high: 我**亲眼在客户输入的文字/图片中看到了**具体的 DXA 报告项目和数字(如\"\
+            腰椎 L1-L4 T值 -2.1\")。可以放心填 dataComplete=true。\n- confidence=medium: 我看到了部分相关词(如\"\
+            骨密度\"\"DXA\"),但**没有看到具体数值**。此时必须填 dataComplete=false,metrics=[]。\n- confidence=low:\
+            \ 输入与骨密度报告完全无关(其他类型报告、设计图、聊天截图、症状描述等),或内容模糊不清。**必须填 dataComplete=false,metrics=[]。**\n\
+            \n**绝对禁止**:在 confidence≠high 时填 dataComplete=true(代码节点会拦截)。如果你想填 true,必须先证明\
+            \ confidence=high。\n\n# 提取规则\n- 常见指标: 腰椎 L1-L4 T值、股骨颈 T值、全髋 T值、25-OH 维生素\
+            \ D、血钙。\n- 文本/图片缺失的指标不要写,只输出实际识别到的项。\n- value 必须是数字;若客户写\"阴性/阳性\"等非数值,不要放进\
+            \ metrics。\n- T 值的合理范围: 一般在 -5.0 ~ +3.0 之间。如果识别出的\"数值\"明显异常(如大于 5 或小于\
+            \ -10),请再次确认——很可能是误识。\n- oneLineConclusion 必须包含\"建议咨询医生/不能替代医生\"等措辞。\n\
+            - problemPriority 仅基于实际识别到的指标给出 1-3 条(仅在 dataComplete=true 时)。\n\n# 跟进问题生成(场景一专属!)\n\
+            基于已识别的 metrics(且 confidence=high),生成 3-5 个对客户最有帮助的跟进问题,\n用来判断客户骨量下降的原因。**这些问题必须\
+            \ 100% 上下文相关,不能套用固定模板。**\n\n## 规则\n- **第一题必须是关于年龄/性别**(通用筛选)。不是 menopause。\n\
+            - **跳过 menopause 问题** 当以下任一条件满足:\n  - 客户输入文本中明确显示是男性(如\"我老公\"\"我爸\"\"\
+            我儿子\")\n  - 客户年龄明确< 40(从报告头/客户文本可推断)\n  - T 值全部正常(> -1.0),不需要问激素相关\n-\
+            \ **跳过已通过 metrics 知道的信息**:\n  - 报告里已有 25-OH 维生素 D → 不问\"您有检查过维生素 D 吗?\"\
+            \n  - 报告里 T 值都在 -1.0 以上 → 可以问更开放的问题,如饮食/运动\n- **不要问客户没数据能回答的问题**(如\"您的具体\
+            \ T 值是多少\"——metrics 已经有了)\n- **避免堆叠陷阱**:不要连续问 3 个 yes/no,每题给 2-4 个选项\n\
+            \n## 输出 schema(追加)\n{\n  \"followUpQuestions\": [\n    { \"id\": \"age_range\"\
+            , \"text\": \"您的年龄段是?\", \"options\": [{\"key\": \"u40\", \"label\": \"\
+            40 岁以下\"}, {\"key\": \"40_50\", \"label\": \"40-50 岁\"}, {\"key\": \"\
+            50_60\", \"label\": \"50-60 岁\"}, {\"key\": \"o60\", \"label\": \"60 岁以上\"\
+            }] },\n    { \"id\": \"sex\", \"text\": \"您的性别是?\", \"options\": [{\"key\"\
+            : \"male\", \"label\": \"男\"}, {\"key\": \"female\", \"label\": \"女\"\
+            }, {\"key\": \"na\", \"label\": \"不便透露\"}] }\n  ]\n}\n\nfollowUpQuestions\
+            \ 的 id 必须尽量语义化,优先使用以下 key:\n- age_range\n- sex\n- supplement_frequency\n\
+            - outdoor_exercise_duration\n- medication_history\n\n**只输出 JSON,不要\
+            \ markdown 包裹、不要解释文字。followUpQuestions 必须有 3-5 项,严格按上面规则生成。**"
+        - id: user-scene1
+          role: user
+          text: '客户输入: {{#4001.input_text#}}
+
+
+            (可能含图片,由你识别)
+
+            '
+        selected: false
+        title: scene1_LLM_骨密度提取
+        type: llm
+        vision:
+          configs:
+            detail: high
+            variable_selector:
+            - '4001'
+            - input_image
+          enabled: true
+      height: 132
+      id: '4010'
+      position:
+        x: 960
+        y: -40
+      positionAbsolute:
+        x: 960
+        y: -40
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+          import re
+
+          ALLOWED_METRIC_KEYWORDS = (
+              "T值", "T 值", "T-score", "T score", "Z值", "Z 值", "Z-score",
+              "25-OH", "维生素D", "维生素 D", "血钙", "BMD", "骨密度"
+          )
+          T_VALUE_MIN = -10.0
+          T_VALUE_MAX = 5.0
+          ALLOWED_PP_NAMES = frozenset({
+              "骨密度下降", "骨量减少", "骨质疏松", "维生素D不足", "血钙异常",
+              "T值偏低", "T值异常", "腰椎骨密度下降", "股骨颈骨密度下降", "全髋骨密度下降",
+          })
+          REPORT_QUESTION_ID_ALIASES = {
+              "q1": "age_range",
+              "q2": "sex",
+              "q3": "supplement_frequency",
+              "q4": "outdoor_exercise_duration",
+              "q5": "medication_history",
+              "q_age": "age_range",
+              "q_lifestyle": "outdoor_exercise_duration",
+              "q_history": "medication_history",
+          }
+
+
+          def _parse_llm_json(llm_text):
+              text = (llm_text or "").strip()
+              if not text:
+                  return {}
+              try:
+                  if text.startswith("{"):
+                      return json.loads(text)
+              except Exception:
+                  pass
+              match = re.search(r"\{[\s\S]*\}", text)
+              if match:
+                  try:
+                      return json.loads(match.group(0))
+                  except Exception:
+                      return {}
+              return {}
+
+
+          def _grade_t(value):
+              try:
+                  v = float(value)
+              except Exception:
+                  return "unknown"
+              if v >= -1.0:
+                  return "normal"
+              if v > -2.5:
+                  return "bone_loss"
+              return "osteoporosis"
+
+
+          def _is_valid_metric_name(name):
+              return isinstance(name, str) and any(keyword in name for keyword in ALLOWED_METRIC_KEYWORDS)
+
+
+          def _safe_float(value):
+              try:
+                  return float(value)
+              except Exception:
+                  return None
+
+
+          def _is_valid_t_value(value):
+              f = _safe_float(value)
+              return f is not None and T_VALUE_MIN <= f <= T_VALUE_MAX
+
+
+          def _normalize_question_id(index, raw_id, text):
+              qid = str(raw_id or "").strip()
+              normalized = REPORT_QUESTION_ID_ALIASES.get(qid, qid)
+              text_value = str(text or "").strip()
+              if normalized:
+                  return normalized
+              if "年龄" in text_value:
+                  return "age_range"
+              if "性别" in text_value:
+                  return "sex"
+              if "维生素D" in text_value or "补充钙" in text_value or "补充维生素D" in text_value:
+                  return "supplement_frequency"
+              if "户外运动" in text_value or "日晒" in text_value or "运动" in text_value:
+                  return "outdoor_exercise_duration"
+              if "药物" in text_value or "骨折" in text_value or "骨代谢" in text_value:
+                  return "medication_history"
+              default_ids = [
+                  "age_range",
+                  "sex",
+                  "supplement_frequency",
+                  "outdoor_exercise_duration",
+                  "medication_history",
+              ]
+              return default_ids[index] if index < len(default_ids) else f"report_followup_{index+1}"
+
+
+          def _sanitize_questions(raw_questions):
+              if not isinstance(raw_questions, list):
+                  return None
+              questions = []
+              seen_ids = set()
+              for index, item in enumerate(raw_questions):
+                  if not isinstance(item, dict):
+                      continue
+                  text = str(item.get("text", "")).strip()
+                  qid = _normalize_question_id(index, item.get("id", ""), text)
+                  options = item.get("options")
+                  if not qid or not text or not isinstance(options, list):
+                      continue
+                  clean_options = []
+                  seen_keys = set()
+                  for option in options:
+                      if not isinstance(option, dict):
+                          continue
+                      key = str(option.get("key", "")).strip()
+                      label = str(option.get("label", "")).strip()
+                      if not key or not label or key in seen_keys:
+                          continue
+                      seen_keys.add(key)
+                      clean_options.append({"key": key, "label": label})
+                  if len(clean_options) < 2 or qid in seen_ids:
+                      continue
+                  seen_ids.add(qid)
+                  questions.append({"id": qid, "text": text, "options": clean_options})
+                  if len(questions) >= 5:
+                      break
+              return questions if len(questions) >= 3 else None
+
+
+          def _fallback_questions():
+              return [
+                  {
+                      "id": "age_range",
+                      "text": "您的年龄段是?",
+                      "options": [
+                          {"key": "u40", "label": "40 岁以下"},
+                          {"key": "40_50", "label": "40-50 岁"},
+                          {"key": "50_60", "label": "50-60 岁"},
+                          {"key": "o60", "label": "60 岁以上"},
+                      ],
+                  },
+                  {
+                      "id": "sex",
+                      "text": "您的性别是?",
+                      "options": [
+                          {"key": "male", "label": "男"},
+                          {"key": "female", "label": "女"},
+                          {"key": "na", "label": "不便透露"},
+                      ],
+                  },
+                  {
+                      "id": "supplement_frequency",
+                      "text": "您日常补充钙或维生素D的频率是?",
+                      "options": [
+                          {"key": "daily", "label": "几乎每天补充"},
+                          {"key": "sometimes", "label": "偶尔补充"},
+                          {"key": "rarely", "label": "几乎不补充"},
+                      ],
+                  },
+                  {
+                      "id": "outdoor_exercise_duration",
+                      "text": "您每周累计户外运动的时长大概是?",
+                      "options": [
+                          {"key": "less1", "label": "不足1小时"},
+                          {"key": "1to3", "label": "1-3小时"},
+                          {"key": "more3", "label": "3小时以上"},
+                      ],
+                  },
+                  {
+                      "id": "medication_history",
+                      "text": "您是否有长期服用影响骨代谢的相关药物史?",
+                      "options": [
+                          {"key": "yes", "label": "是"},
+                          {"key": "no", "label": "否"},
+                          {"key": "unknown", "label": "不清楚"},
+                      ],
+                  },
+              ]
+
+
+          def _insufficient(reason, user_message):
+              payload = {
+                  "reportType": "bone_density",
+                  "dataComplete": False,
+                  "reason": reason,
+                  "userMessage": user_message,
+                  "metrics": [],
+                  "problemPriority": [],
+              }
+              response = {
+                  "scene": "report",
+                  "risk_level": "low",
+                  "scene_confidence": 0.3,
+                  "payloadKind": "insufficient_data",
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+
+
+          def main(llm_text):
+              data = _parse_llm_json(llm_text)
+              confidence = str(data.get("confidence", "")).strip().lower()
+              llm_data_complete = bool(data.get("dataComplete", False))
+              if llm_data_complete and confidence != "high":
+                  return _insufficient(
+                      "fabrication_detected",
+                      "AI 无法确认报告中的真实指标。请重新上传清晰 DXA 报告,或直接粘贴 T 值原文。"
+                  )
+
+              raw_metrics = data.get("metrics") or []
+              if not isinstance(raw_metrics, list):
+                  raw_metrics = []
+
+              metrics = []
+              t_values = []
+              for metric in raw_metrics:
+                  if not isinstance(metric, dict):
+                      continue
+                  name = metric.get("name", "")
+                  if not _is_valid_metric_name(name):
+                      continue
+                  clean_metric = {
+                      "name": name,
+                      "value": metric.get("value"),
+                      "unit": metric.get("unit", ""),
+                  }
+                  if "T" in name or "t" in name:
+                      if not _is_valid_t_value(clean_metric["value"]):
+                          continue
+                      clean_metric["level"] = _grade_t(clean_metric["value"])
+                      t_values.append(float(clean_metric["value"]))
+                  else:
+                      clean_metric["level"] = "reported"
+                  metrics.append(clean_metric)
+
+              if not t_values:
+                  return _insufficient(
+                      "no_metrics_extracted",
+                      "未识别到可信的骨密度 T 值。请上传清晰 DXA 报告,或直接粘贴如“腰椎 L1-L4 T值 -2.1”的原文。"
+                  )
+
+              levels = [metric.get("level", "unknown") for metric in metrics]
+              if "osteoporosis" in levels:
+                  risk_level = "high"
+              elif "bone_loss" in levels:
+                  risk_level = "medium"
+              else:
+                  risk_level = "low"
+
+              one_line = str(data.get("oneLineConclusion", "")).strip()
+              if not one_line:
+                  one_line = "本次仅基于已识别到的报告指标做初步整理,不能替代医生面诊。"
+
+              problem_priority = []
+              raw_problem_priority = data.get("problemPriority") or []
+              if isinstance(raw_problem_priority, list):
+                  for item in raw_problem_priority:
+                      if not isinstance(item, dict):
+                          continue
+                      name = item.get("name")
+                      if name not in ALLOWED_PP_NAMES:
+                          continue
+                      problem_priority.append({
+                          "rank": item.get("rank"),
+                          "name": name,
+                          "level": item.get("level", ""),
+                      })
+
+              follow_up = _sanitize_questions(data.get("followUpQuestions")) or _fallback_questions()
+              worst_t_value = min(t_values)
+
+              payload = {
+                  "reportType": "bone_density",
+                  "dataComplete": True,
+                  "metrics": metrics,
+                  "tValueChart": {
+                      "normal": -1.0,
+                      "yours": worst_t_value,
+                      "thresholds": {"normal": -1.0, "loss": -2.5},
+                  },
+                  "metricJudgements": [
+                      {
+                          "name": metric["name"],
+                          "value": metric["value"],
+                          "level": metric.get("level", "reported"),
+                      }
+                      for metric in metrics
+                  ],
+                  "oneLineConclusion": one_line,
+                  "problemPriority": problem_priority,
+                  "questions": follow_up,
+              }
+
+              response = {
+                  "scene": "report",
+                  "risk_level": risk_level,
+                  "scene_confidence": 0.85,
+                  "payloadKind": "complete",
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+        desc: 严格校验 report 提取结果,仅在存在可信 T 值时输出 complete
+        code_language: python3
+        outputs:
+          output:
+            type: string
+            children: null
+        selected: false
+        title: scene1_code_JSON+T值分级
+        type: code
+        variables:
+        - value_selector:
+          - '4010'
+          - text
+          variable: llm_text
+      height: 92
+      id: '4011'
+      position:
+        x: 1280
+        y: -40
+      positionAbsolute:
+        x: 1280
+        y: -40
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: symptom 场景内识别具体意图并同时检查危险信号
+        model:
+          completion_params:
+            max_tokens: 512
+            temperature: 0
+            top_p: 1
+          mode: chat
+          name: Doubao-Seed-2.0-lite
+          provider: langgenius/volcengine_maas/volcengine_maas
+        prompt_template:
+        - id: sys-danger
+          role: system
+          text: |-
+            你现在已经处在 symptom 场景,不要重新做 report/product/symptom 分流。
+
+            你的任务有两个:
+            1. 识别症状意图 intent
+            2. 识别是否存在需要立即就医的危险信号 urgent
+
+            intent 只能是以下之一:
+            - leg_pain
+            - back_pain
+            - joint_pain
+            - general_symptom
+
+            questionnaireRef 映射固定为:
+            - leg_pain -> leg_pain_v1
+            - back_pain -> back_pain_v1
+            - joint_pain -> joint_pain_v1
+            - general_symptom -> general_symptom_v1
+
+            以下情况应判定 urgent=true:
+            - 突然剧烈疼痛
+            - 不能站立、不能走路、无法负重
+            - 一侧肢体明显肿胀
+            - 胸痛、胸闷、呼吸困难
+            - 发热寒战并伴局部红肿热痛
+            - 明显麻木无力
+            - 外伤后严重疼痛或活动受限
+
+            只输出 JSON:
+            {"intent":"leg_pain|back_pain|joint_pain|general_symptom","questionnaireRef":"leg_pain_v1|back_pain_v1|joint_pain_v1|general_symptom_v1","urgent":true,"redFlags":["命中的危险信号"],"confidence":0.0,"reasoning":"一句话依据"}
+        - id: user-danger
+          role: user
+          text: |-
+            用户当前文本: {{#4001.input_text#}}
+            用户当前量表答案(JSON): {{#4001.input_answers#}}
+        selected: false
+        title: scene2_LLM_症状意图识别
+        type: llm
+        vision:
+          enabled: false
+      height: 132
+      id: '4020'
+      position:
+        x: 960
+        y: 200
+      positionAbsolute:
+        x: 960
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+          import re
+
+          ALLOWED_INTENTS = {"leg_pain", "back_pain", "joint_pain", "general_symptom"}
+          INTENT_TO_QREF = {
+              "leg_pain": "leg_pain_v1",
+              "back_pain": "back_pain_v1",
+              "joint_pain": "joint_pain_v1",
+              "general_symptom": "general_symptom_v1",
+          }
+          URGENT_TEXT_PATTERNS = [
+              "突然剧烈", "剧烈疼痛", "不能站", "不能走", "无法负重", "胸痛", "胸闷", "呼吸困难",
+              "气短", "一侧肿胀", "明显肿胀", "红肿热痛", "发热寒战", "麻木无力", "外伤后",
+          ]
+          URGENT_ANSWER_KEYS = [
+              "sudden_severe", "cannot_stand", "chest_discomfort",
+              "fever_red_swollen", "weakness_numbness", "trauma",
+          ]
+
+
+          def _parse_json(text):
+              raw = (text or "").strip()
+              if not raw:
+                  return {}
+              try:
+                  if raw.startswith("{"):
+                      return json.loads(raw)
+              except Exception:
+                  pass
+              match = re.search(r"\{[\s\S]*\}", raw)
+              if match:
+                  try:
+                      return json.loads(match.group(0))
+                  except Exception:
+                      return {}
+              return {}
+
+
+          def _parse_answers(answers):
+              raw = (answers or "").strip()
+              if not raw or raw == "{}":
+                  return {}
+              try:
+                  data = json.loads(raw)
+                  return data if isinstance(data, dict) else {}
+              except Exception:
+                  return {}
+
+
+          def _fallback_intent(raw_text):
+              text = (raw_text or "").lower()
+              if re.search(r"腿|膝|小腿|大腿|脚|踝", text):
+                  return "leg_pain"
+              if re.search(r"腰|背|臀|坐骨", text):
+                  return "back_pain"
+              if re.search(r"关节|肩|肘|腕|手指", text):
+                  return "joint_pain"
+              return "general_symptom"
+
+
+          def main(llm_text: str, raw_text: str, answers: str) -> dict:
+              parsed = _parse_json(llm_text)
+              answer_dict = _parse_answers(answers)
+              has_answers = bool(answer_dict)
+
+              intent = str(parsed.get("intent", "")).strip()
+              if intent not in ALLOWED_INTENTS:
+                  intent = _fallback_intent(raw_text)
+              questionnaire_ref = str(parsed.get("questionnaireRef", "")).strip()
+              if questionnaire_ref != INTENT_TO_QREF.get(intent):
+                  questionnaire_ref = INTENT_TO_QREF[intent]
+
+              urgent = bool(parsed.get("urgent", False))
+              matched_flags = []
+              raw_flags = parsed.get("redFlags") or []
+              if isinstance(raw_flags, list):
+                  matched_flags.extend(str(item).strip() for item in raw_flags if str(item).strip())
+
+              for key in URGENT_ANSWER_KEYS:
+                  if answer_dict.get(key) == "yes":
+                      urgent = True
+                      matched_flags.append(key)
+
+              for keyword in URGENT_TEXT_PATTERNS:
+                  if keyword in (raw_text or ""):
+                      urgent = True
+                      matched_flags.append(keyword)
+
+              dedup_flags = []
+              for item in matched_flags:
+                  if item and item not in dedup_flags:
+                      dedup_flags.append(item)
+
+              return {
+                  "urgent": urgent,
+                  "matched": "、".join(dedup_flags),
+                  "intent": intent,
+                  "questionnaire_ref": questionnaire_ref,
+                  "has_answers": has_answers,
+              }
+        desc: 解析症状意图识别结果,并对文本与量表答案做危险信号兜底
+        code_language: python3
+        outputs:
+          urgent:
+            type: boolean
+            children: null
+          matched:
+            type: string
+            children: null
+          intent:
+            type: string
+            children: null
+          questionnaire_ref:
+            type: string
+            children: null
+          has_answers:
+            type: boolean
+            children: null
+        selected: false
+        title: scene2_code_意图+风险解析
+        type: code
+        variables:
+        - value_selector:
+          - '4020'
+          - text
+          variable: llm_text
+        - value_selector:
+          - '4001'
+          - input_text
+          variable: raw_text
+        - value_selector:
+          - '4001'
+          - input_answers
+          variable: answers
+      height: 92
+      id: '4021'
+      position:
+        x: 1280
+        y: 200
+      positionAbsolute:
+        x: 1280
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: cond-urgent
+            value: 'true'
+            varType: boolean
+            variable_selector:
+            - '4021'
+            - urgent
+          id: 'true'
+          logical_operator: and
+        desc: urgent=true 直接返回紧急分诊; false 进入固定问卷或答案解读
+        logical_operator: and
+        selected: false
+        title: 路由-是否urgent
+        type: if-else
+      height: 168
+      id: '4022'
+      position:
+        x: 1600
+        y: 200
+      positionAbsolute:
+        x: 1600
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+
+
+          def main(matched: str, intent: str) -> dict:
+              payload = {
+                  "dataComplete": True,
+                  "symptomIntent": intent or "general_symptom",
+                  "triageMode": "urgent",
+                  "dangerSignals": [item for item in (matched or "").split("、") if item],
+                  "department": "急诊 / 对应专科",
+                  "userMessage": "检测到危险信号,请立即线下就医或前往急诊,不要继续等待问卷结果。",
+                  "nextAction": [
+                      "立即停止自行观察和延迟处理",
+                      "如出现胸痛、呼吸困难、无法站立等情况请尽快急诊",
+                  ],
+              }
+              response = {
+                  "scene": "symptom",
+                  "risk_level": "urgent",
+                  "scene_confidence": 0.95,
+                  "payloadKind": "complete",
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+        desc: 症状危险信号命中后直接输出紧急分诊结果
+        code_language: python3
+        outputs:
+          output:
+            type: string
+            children: null
+        selected: false
+        title: scene2_urgent_payload
+        type: code
+        variables:
+        - value_selector:
+          - '4021'
+          - matched
+          variable: matched
+        - value_selector:
+          - '4021'
+          - intent
+          variable: intent
+      height: 92
+      id: '4023'
+      position:
+        x: 1920
+        y: 40
+      positionAbsolute:
+        x: 1920
+        y: 40
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+
+          QUESTIONNAIRES = {
+              "leg_pain_v1": {
+                  "intent": "leg_pain",
+                  "title": "腿部疼痛固定问卷",
+                  "questions": [
+                      {"id": "location", "text": "疼痛最主要在哪个部位?", "type": "single", "options": [{"key": "calf", "label": "小腿"}, {"key": "knee", "label": "膝周"}, {"key": "thigh", "label": "大腿"}, {"key": "diffuse", "label": "整条腿/说不清"}]},
+                      {"id": "duration", "text": "持续多久了?", "type": "single", "options": [{"key": "lt_3d", "label": "3 天内"}, {"key": "lt_2w", "label": "2 周内"}, {"key": "gt_2w", "label": "2 周以上"}]},
+                      {"id": "trigger", "text": "更像在哪种情况下加重?", "type": "single", "options": [{"key": "walking", "label": "走路/负重"}, {"key": "stairs", "label": "上下楼"}, {"key": "rest", "label": "休息时也明显"}, {"key": "unknown", "label": "说不清"}]},
+                      {"id": "weakness_numbness", "text": "是否伴有麻木、无力或放射感?", "type": "single", "options": [{"key": "no", "label": "没有"}, {"key": "yes", "label": "有"}]},
+                      {"id": "sudden_severe", "text": "是否突然发生且疼得很厉害?", "type": "single", "options": [{"key": "no", "label": "否"}, {"key": "yes", "label": "是"}]},
+                      {"id": "cannot_stand", "text": "现在是否影响站立、走路或负重?", "type": "single", "options": [{"key": "no", "label": "否"}, {"key": "yes", "label": "是"}]},
+                  ],
+              },
+              "back_pain_v1": {
+                  "intent": "back_pain",
+                  "title": "腰背痛固定问卷",
+                  "questions": [
+                      {"id": "duration", "text": "腰背痛持续多久了?", "type": "single", "options": [{"key": "lt_1w", "label": "1 周内"}, {"key": "lt_1m", "label": "1 个月内"}, {"key": "gt_1m", "label": "1 个月以上"}]},
+                      {"id": "radiation", "text": "疼痛是否向臀部或腿部放射?", "type": "single", "options": [{"key": "no", "label": "没有"}, {"key": "yes", "label": "有"}]},
+                      {"id": "movement_related", "text": "是否在弯腰、久坐、起身时更明显?", "type": "single", "options": [{"key": "no", "label": "否"}, {"key": "yes", "label": "是"}]},
+                      {"id": "weakness_numbness", "text": "是否伴有腿麻、无力或踩空感?", "type": "single", "options": [{"key": "no", "label": "没有"}, {"key": "yes", "label": "有"}]},
+                      {"id": "trauma", "text": "近期是否有搬重物、扭伤或外伤?", "type": "single", "options": [{"key": "no", "label": "没有"}, {"key": "yes", "label": "有"}]},
+                  ],
+              },
+              "joint_pain_v1": {
+                  "intent": "joint_pain",
+                  "title": "关节痛固定问卷",
+                  "questions": [
+                      {"id": "joint_site", "text": "主要是哪个关节不适?", "type": "single", "options": [{"key": "shoulder", "label": "肩"}, {"key": "elbow", "label": "肘"}, {"key": "wrist", "label": "腕/手"}, {"key": "multiple", "label": "多个关节"}]},
+                      {"id": "swelling", "text": "是否能看到肿胀或局部发热?", "type": "single", "options": [{"key": "no", "label": "没有"}, {"key": "yes", "label": "有"}]},
+                      {"id": "morning_stiffness", "text": "晨起僵硬是否明显?", "type": "single", "options": [{"key": "no", "label": "不明显"}, {"key": "yes", "label": "明显"}]},
+                      {"id": "activity_related", "text": "活动后更重还是越动越开?", "type": "single", "options": [{"key": "load", "label": "活动负重后更重"}, {"key": "stiff", "label": "活动后稍缓解"}, {"key": "unknown", "label": "说不清"}]},
+                      {"id": "duration", "text": "症状持续多久?", "type": "single", "options": [{"key": "lt_1w", "label": "1 周内"}, {"key": "lt_1m", "label": "1 个月内"}, {"key": "gt_1m", "label": "1 个月以上"}]},
+                  ],
+              },
+              "general_symptom_v1": {
+                  "intent": "general_symptom",
+                  "title": "通用症状固定问卷",
+                  "questions": [
+                      {"id": "system", "text": "最主要的不适更接近哪类?", "type": "single", "options": [{"key": "pain", "label": "疼痛"}, {"key": "fatigue", "label": "乏力/疲劳"}, {"key": "fever", "label": "发热/感染感"}, {"key": "other", "label": "其他"}]},
+                      {"id": "duration", "text": "持续多久了?", "type": "single", "options": [{"key": "lt_3d", "label": "3 天内"}, {"key": "lt_2w", "label": "2 周内"}, {"key": "gt_2w", "label": "2 周以上"}]},
+                      {"id": "daily_impact", "text": "对日常活动影响大吗?", "type": "single", "options": [{"key": "low", "label": "影响不大"}, {"key": "medium", "label": "有些影响"}, {"key": "high", "label": "影响明显"}]},
+                      {"id": "fever_red_swollen", "text": "是否伴有高热、明显红肿热痛或进行性加重?", "type": "single", "options": [{"key": "no", "label": "没有"}, {"key": "yes", "label": "有"}]},
+                  ],
+              },
+          }
+
+
+          def _parse_answers(answers):
+              raw = (answers or "").strip()
+              if not raw or raw == "{}":
+                  return {}
+              try:
+                  data = json.loads(raw)
+                  return data if isinstance(data, dict) else {}
+              except Exception:
+                  return {}
+
+
+          def _insufficient(questionnaire_ref):
+              questionnaire = QUESTIONNAIRES.get(questionnaire_ref) or QUESTIONNAIRES["general_symptom_v1"]
+              payload = {
+                  "dataComplete": False,
+                  "symptomIntent": questionnaire["intent"],
+                  "currentStep": "questionnaire",
+                  "questionnaireRef": questionnaire_ref,
+                  "questionnaireTitle": questionnaire["title"],
+                  "userMessage": "为避免误判,请先补充以下固定问卷后再继续判断。",
+                  "questions": questionnaire["questions"],
+              }
+              return "insufficient_data", "low", payload
+
+
+          def _complete(intent, questionnaire_ref, tag, risk_level, department, conclusion, answers):
+              payload = {
+                  "dataComplete": True,
+                  "symptomIntent": intent,
+                  "questionnaireRef": questionnaire_ref,
+                  "tag": tag,
+                  "riskLevel": risk_level,
+                  "department": department,
+                  "oneLineConclusion": conclusion,
+                  "reasoningBasis": answers,
+              }
+              return "complete", risk_level, payload
+
+
+          def _interpret_leg_pain(answers, questionnaire_ref):
+              if len(answers) < 3:
+                  return _insufficient(questionnaire_ref)
+              if answers.get("weakness_numbness") == "yes":
+                  return _complete("leg_pain", questionnaire_ref, "possible_nerve_related", "medium", "骨科 / 康复科", "腿痛伴麻木或无力,更需要线下评估是否存在神经受刺激。", answers)
+              if answers.get("trigger") == "stairs" or answers.get("location") == "knee":
+                  return _complete("leg_pain", questionnaire_ref, "joint_load_related", "medium", "骨科 / 运动医学", "腿痛更像与膝关节负重或活动相关,建议先减少高负荷动作。", answers)
+              if answers.get("duration") == "gt_2w":
+                  return _complete("leg_pain", questionnaire_ref, "persistent_leg_pain", "medium", "骨科 / 康复科", "腿痛持续时间偏长,建议做线下检查明确软组织或关节原因。", answers)
+              return _complete("leg_pain", questionnaire_ref, "soft_tissue_overuse", "low", "康复科 / 骨科", "当前更像软组织劳损或过度使用后的疼痛,先休息和减少负重。", answers)
+
+
+          def _interpret_back_pain(answers, questionnaire_ref):
+              if len(answers) < 3:
+                  return _insufficient(questionnaire_ref)
+              if answers.get("radiation") == "yes" or answers.get("weakness_numbness") == "yes":
+                  return _complete("back_pain", questionnaire_ref, "possible_radicular_back_pain", "medium", "骨科 / 脊柱外科", "腰背痛伴放射或麻木表现,建议线下排查神经受压。", answers)
+              if answers.get("duration") == "gt_1m":
+                  return _complete("back_pain", questionnaire_ref, "chronic_back_pain", "medium", "骨科 / 康复科", "腰背痛持续时间较长,建议做规范评估并开始康复训练。", answers)
+              return _complete("back_pain", questionnaire_ref, "mechanical_back_pain", "low", "康复科", "腰背痛更像姿势或活动相关问题,先减少久坐久弯并观察。", answers)
+
+
+          def _interpret_joint_pain(answers, questionnaire_ref):
+              if len(answers) < 3:
+                  return _insufficient(questionnaire_ref)
+              if answers.get("swelling") == "yes" and answers.get("morning_stiffness") == "yes":
+                  return _complete("joint_pain", questionnaire_ref, "inflammatory_joint_pattern", "medium", "风湿免疫科 / 骨科", "关节痛伴肿胀和晨僵,建议进一步排查炎症性问题。", answers)
+              if answers.get("activity_related") == "load":
+                  return _complete("joint_pain", questionnaire_ref, "load_related_joint_pain", "low", "骨科 / 运动医学", "更像活动负荷相关的关节不适,先减少重复负重和高冲击动作。", answers)
+              return _complete("joint_pain", questionnaire_ref, "nonspecific_joint_pain", "low", "骨科", "当前信息更像非特异性关节痛,建议先记录部位与诱因。", answers)
+
+
+          def _interpret_general(answers, questionnaire_ref):
+              if len(answers) < 2:
+                  return _insufficient(questionnaire_ref)
+              if answers.get("daily_impact") == "high":
+                  return _complete("general_symptom", questionnaire_ref, "needs_offline_assessment", "medium", "全科 / 对应专科", "症状已明显影响日常活动,建议尽快线下就诊完善检查。", answers)
+              return _complete("general_symptom", questionnaire_ref, "generic_low_risk_symptom", "low", "全科", "当前信息不足以支持更具体判断,建议先补充病程和伴随症状。", answers)
+
+
+          def main(intent: str, questionnaire_ref: str, answers: str) -> dict:
+              qref = questionnaire_ref if questionnaire_ref in QUESTIONNAIRES else "general_symptom_v1"
+              answer_dict = _parse_answers(answers)
+              if not answer_dict:
+                  payload_kind, risk_level, payload = _insufficient(qref)
+              elif qref == "leg_pain_v1":
+                  payload_kind, risk_level, payload = _interpret_leg_pain(answer_dict, qref)
+              elif qref == "back_pain_v1":
+                  payload_kind, risk_level, payload = _interpret_back_pain(answer_dict, qref)
+              elif qref == "joint_pain_v1":
+                  payload_kind, risk_level, payload = _interpret_joint_pain(answer_dict, qref)
+              else:
+                  payload_kind, risk_level, payload = _interpret_general(answer_dict, qref)
+
+              return {
+                  "payload_json": json.dumps(payload, ensure_ascii=False),
+                  "payload_kind": payload_kind,
+                  "risk_level": risk_level,
+              }
+        desc: 固定问卷触发与答案解读引擎
+        code_language: python3
+        outputs:
+          payload_json:
+            type: string
+            children: null
+          payload_kind:
+            type: string
+            children: null
+          risk_level:
+            type: string
+            children: null
+        selected: false
+        title: scene2_固定问卷引擎
+        type: code
+        variables:
+        - value_selector:
+          - '4021'
+          - intent
+          variable: intent
+        - value_selector:
+          - '4021'
+          - questionnaire_ref
+          variable: questionnaire_ref
+        - value_selector:
+          - '4001'
+          - input_answers
+          variable: answers
+      height: 134
+      id: '4024'
+      position:
+        x: 1920
+        y: 360
+      positionAbsolute:
+        x: 1920
+        y: 360
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+
+
+          def main(payload_json: str, payload_kind: str, risk_level: str) -> dict:
+              try:
+                  payload = json.loads(payload_json) if payload_json else {}
+              except Exception:
+                  payload = {}
+              if not isinstance(payload, dict):
+                  payload = {}
+
+              response = {
+                  "scene": "symptom",
+                  "risk_level": risk_level or "low",
+                  "scene_confidence": 0.88,
+                  "payloadKind": payload_kind or ("complete" if payload.get("dataComplete") else "insufficient_data"),
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+        desc: 包装症状分支输出,统一到 payloadKind 体系
+        code_language: python3
+        outputs:
+          output:
+            type: string
+            children: null
+        selected: false
+        title: scene2_payload
+        type: code
+        variables:
+        - value_selector:
+          - '4024'
+          - payload_json
+          variable: payload_json
+        - value_selector:
+          - '4024'
+          - payload_kind
+          variable: payload_kind
+        - value_selector:
+          - '4024'
+          - risk_level
+          variable: risk_level
+      height: 92
+      id: '4025'
+      position:
+        x: 2240
+        y: 360
+      positionAbsolute:
+        x: 2240
+        y: 360
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - d6538344-9129-4098-94d9-d36f6cf9796f
+        desc: 从产品库检索与客户问题相关的产品
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: qwen3-rerank
+            provider: langgenius/tongyi/tongyi
+          score_threshold: 0.6
+          top_k: 3
+          weights: null
+        query_attachment_selector: []
+        query_variable_selector:
+        - '4001'
+        - input_text
+        retrieval_mode: multiple
+        selected: false
+        title: 产品库检索
+        type: knowledge-retrieval
+      height: 134
+      id: '4030'
+      position:
+        x: 960
+        y: 480
+      positionAbsolute:
+        x: 960
+        y: 480
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '4030'
+          - result
+        desc: 基于产品库回答,不能替代药物/诊断
+        model:
+          completion_params:
+            max_tokens: 1024
+            temperature: 0.5
+            top_p: 1
+          mode: chat
+          name: Doubao-Seed-2.0-lite
+          provider: langgenius/volcengine_maas/volcengine_maas
+        prompt_template:
+        - id: sys-product
+          role: system
+          text: "你是销售小程序中的 AI 健康产品问答助手。\n\n边界:只做客观问答,不下诊断、不开药、不承诺疗效、不替代医生;不能推荐产品治疗疾病。\n\
+            \n输出语言: {{#4001.input_language#}},默认简体中文。\n\n输出 schema(只输出 JSON):\n{\n\
+            \  \"productRef\": \"匹配的产品名(无则空字符串)\",\n  \"knowledgeBaseAnswer\": \"\
+            基于产品库内容的客观回答,含 4 段:产品/成分、可能适合、需谨慎人群、不能替代\"\n}\n"
+        - id: user-product
+          role: user
+          text: '客户问题: {{#4001.input_text#}}
+
+
+            参考资料(产品库):
+
+            {{#context#}}
+
+            '
+        selected: false
+        title: scene3_LLM_产品问答
+        type: llm
+        vision:
+          enabled: false
+      height: 132
+      id: '4031'
+      position:
+        x: 1280
+        y: 480
+      positionAbsolute:
+        x: 1280
+        y: 480
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |-
+          import json
+          import re
+
+
+          def main(llm_text: str) -> dict:
+              text = (llm_text or "").strip()
+              inner = {}
+              try:
+                  if text.startswith("{"):
+                      inner = json.loads(text)
+                  else:
+                      match = re.search(r"\{[\s\S]*\}", text)
+                      if match:
+                          inner = json.loads(match.group(0))
+              except Exception:
+                  inner = {}
+
+              answer = inner.get("knowledgeBaseAnswer") or text or "抱歉,当前知识库里没有足够信息支持这次产品回答。"
+              payload = {
+                  "productRef": inner.get("productRef") or "",
+                  "knowledgeBaseAnswer": answer,
+                  "evidenceStatus": "knowledge_base" if answer else "not_found",
+              }
+              response = {
+                  "scene": "product",
+                  "risk_level": "low",
+                  "scene_confidence": 0.9,
+                  "payloadKind": "product_vetted",
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+        desc: 将产品知识库回答包装为 product_vetted 结果
+        code_language: python3
+        outputs:
+          output:
+            type: string
+            children: null
+        selected: false
+        title: scene3_code_包装
+        type: code
+        variables:
+        - value_selector:
+          - '4031'
+          - text
+          variable: llm_text
+      height: 92
+      id: '4032'
+      position:
+        x: 1520
+        y: 480
+      positionAbsolute:
+        x: 1520
+        y: 480
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        advanced_settings:
+          group_enabled: false
+          groups: []
+        desc: 4 路 scene 合并到 output(取先到的)
+        output_type: string
+        outputs:
+          output:
+            type: string
+            children: null
+        selected: false
+        title: 最终payload聚合
+        type: variable-aggregator
+        variables:
+        - - '4011'
+          - output
+        - - '4023'
+          - output
+        - - '4025'
+          - output
+        - - '4032'
+          - output
+        - - '4121'
+          - output
+      height: 178
+      id: '4090'
+      position:
+        x: 2560
+        y: 200
+      positionAbsolute:
+        x: 2560
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: 工作流终点,输出 SceneResponse JSON 字符串
+        outputs:
+        - value_selector:
+          - '4090'
+          - output
+          variable: output
+        selected: false
+        title: 结束
+        type: end
+      height: 116
+      id: '4099'
+      position:
+        x: 2880
+        y: 200
+      positionAbsolute:
+        x: 2880
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - id: '4104'
+      type: custom
+      position:
+        x: 800
+        y: -40
+      positionAbsolute:
+        x: 800
+        y: -40
+      width: 242
+      height: 90
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      data:
+        code: |-
+          # 4104: 检测答案是否非空,并把 legacy q1~q5 归一化为语义化 key
+          import json
+
+          LEGACY_TO_SEMANTIC = {
+              "q1": "age_range",
+              "q2": "sex",
+              "q3": "supplement_frequency",
+              "q4": "outdoor_exercise_duration",
+              "q5": "medication_history",
+          }
+
+
+          def _parse_answers(answers):
+              raw = (answers or "").strip()
+              if not raw or raw == "{}":
+                  return {}
+              try:
+                  data = json.loads(raw)
+                  return data if isinstance(data, dict) else {}
+              except Exception:
+                  return {}
+
+
+          def _normalize_answers(answer_dict):
+              normalized = {}
+              for key, value in answer_dict.items():
+                  normalized_key = LEGACY_TO_SEMANTIC.get(str(key).strip(), str(key).strip())
+                  normalized[normalized_key] = value
+              return normalized
+
+
+          def main(answers: str) -> dict:
+              obj = _parse_answers(answers)
+              if obj:
+                  normalized = _normalize_answers(obj)
+                  return {
+                      "has_answers": True,
+                      "normalized_answers": json.dumps(normalized, ensure_ascii=False),
+                  }
+              return {"has_answers": False, "normalized_answers": "{}"}
+        code_language: python3
+        desc: 检测 input_answers 是否非空 → 路由到 4110 或 4010
+        outputs:
+          has_answers:
+            type: boolean
+            children: null
+          normalized_answers:
+            type: string
+            children: null
+        selected: false
+        title: scene1_has_answers
+        type: code
+        variables:
+        - value_selector:
+          - '4001'
+          - input_answers
+          variable: answers
+    - id: '4105'
+      type: custom
+      position:
+        x: 800
+        y: 40
+      positionAbsolute:
+        x: 800
+        y: 40
+      width: 242
+      height: 168
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: cond-has-answers
+            value: true
+            varType: boolean
+            variable_selector:
+            - '4104'
+            - has_answers
+          id: 'true'
+          logical_operator: and
+        desc: scene1 内部分流:有 answers → 4110 (用答案生成方案);无 answers → 4010 (LLM 重新分析原报告)
+        logical_operator: and
+        title: scene1-有答案?
+        selected: false
+        type: if-else
+    - id: '4120'
+      type: custom
+      position:
+        x: 1040
+        y: 40
+      positionAbsolute:
+        x: 1040
+        y: 40
+      width: 242
+      height: 132
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      data:
+        code: |-
+          import json
+          import re
+
+          TAG_PRIORITY = [
+              "fracture_high_risk",
+              "medication_related",
+              "menopause_related",
+              "vitamin_d_deficient",
+              "calcium_protein_deficient",
+              "exercise_deficient",
+          ]
+          TAG_RISK = {
+              "fracture_high_risk": "high",
+              "medication_related": "high",
+              "menopause_related": "medium",
+              "vitamin_d_deficient": "medium",
+              "calcium_protein_deficient": "low",
+              "exercise_deficient": "low",
+          }
+          FIXED_RULES = {
+              "menopause": {
+                  "yes": [("menopause_related", 3, "已绝经")],
+              },
+              "fragility_fracture": {
+                  "yes": [("fracture_high_risk", 3, "有轻微摔倒后骨折史")],
+              },
+              "family_osteoporosis": {
+                  "yes": [("fracture_high_risk", 2, "有骨质疏松家族史")],
+              },
+              "sun_exposure": {
+                  "yes": [("vitamin_d_deficient", 2, "日晒较少")],
+              },
+              "calcium_intake": {
+                  "yes": [("calcium_protein_deficient", 2, "高钙食物摄入不足")],
+              },
+              "strength_training": {
+                  "yes": [("exercise_deficient", 2, "缺乏负重或力量训练")],
+              },
+              "low_bmi": {
+                  "yes": [("calcium_protein_deficient", 1, "体重偏低或近期明显减重")],
+              },
+              "steroid_use": {
+                  "yes": [("medication_related", 3, "长期服用激素类药物")],
+              },
+              "smoke_alcohol": {
+                  "yes": [("medication_related", 1, "经常饮酒或吸烟")],
+              },
+              "chronic_disease": {
+                  "yes": [("medication_related", 2, "存在影响骨代谢的慢病")],
+              },
+              "spine_symptom": {
+                  "yes": [("fracture_high_risk", 3, "有腰背痛/身高变矮/驼背加重表现")],
+              },
+              "vitd_tested": {
+                  "low": [("vitamin_d_deficient", 2, "25-OH 维生素D检查偏低")],
+              },
+          }
+
+
+          def _parse_answers(raw):
+              text = (raw or "").strip()
+              if not text or text == "{}":
+                  return {}
+              try:
+                  data = json.loads(text)
+                  return data if isinstance(data, dict) else {}
+              except Exception:
+                  return {}
+
+
+          def _extract_worst_t_value(text):
+              raw = text or ""
+              patterns = [
+                  r"(?:T值|T 值|T-score|T score)\s*[:：]?\s*([+-]?\d+(?:\.\d+)?)",
+                  r"([+-]?\d+(?:\.\d+)?)\s*(?:为)?\s*(?:T值|T 值|T-score|T score)",
+              ]
+              values = []
+              for pattern in patterns:
+                  for item in re.findall(pattern, raw, flags=re.IGNORECASE):
+                      try:
+                          values.append(float(item))
+                      except Exception:
+                          pass
+              if not values:
+                  return None
+              return min(values)
+
+
+          def _score_fixed_answers(answers, scores, evidences):
+              recognized = any(question_id in answers for question_id in FIXED_RULES.keys())
+              for question_id, option_rules in FIXED_RULES.items():
+                  answer = str(answers.get(question_id, "")).strip()
+                  if answer in option_rules:
+                      for tag, weight, evidence in option_rules[answer]:
+                          scores[tag] += weight
+                          evidences.append(evidence)
+              return recognized
+
+
+          def _score_semantic_answers(answers, scores, evidences):
+              recognized = False
+              age = str(answers.get("age_range", "")).strip()
+              sex = str(answers.get("sex", "")).strip()
+              supplement = str(answers.get("supplement_frequency", "")).strip()
+              exercise = str(answers.get("outdoor_exercise_duration", "")).strip()
+              medication = str(answers.get("medication_history", "")).strip()
+
+              if any([age, sex, supplement, exercise, medication]):
+                  recognized = True
+
+              if sex == "female" and age in ("50_60", "o60"):
+                  scores["menopause_related"] += 3
+                  evidences.append("女性且年龄位于绝经相关高发区间")
+              elif sex == "female" and age == "40_50":
+                  scores["menopause_related"] += 1
+                  evidences.append("女性且接近绝经年龄段")
+
+              if supplement == "rarely":
+                  scores["calcium_protein_deficient"] += 2
+                  scores["vitamin_d_deficient"] += 2
+                  evidences.append("日常很少补充钙或维生素D")
+              elif supplement == "sometimes":
+                  scores["calcium_protein_deficient"] += 1
+                  scores["vitamin_d_deficient"] += 1
+                  evidences.append("钙和维生素D补充频率偏低")
+
+              if exercise == "less1":
+                  scores["exercise_deficient"] += 2
+                  scores["vitamin_d_deficient"] += 1
+                  evidences.append("户外运动时长不足")
+              elif exercise == "1to3":
+                  scores["exercise_deficient"] += 1
+                  evidences.append("户外运动一般")
+
+              if medication == "yes":
+                  scores["medication_related"] += 3
+                  evidences.append("存在长期影响骨代谢的用药史")
+
+              if age == "o60":
+                  scores["fracture_high_risk"] += 1
+                  evidences.append("年龄较大,骨折风险相对更高")
+
+              return recognized
+
+
+          def _pick_tag(scores):
+              ranked = sorted(
+                  TAG_PRIORITY,
+                  key=lambda tag: (scores.get(tag, 0), -TAG_PRIORITY.index(tag)),
+                  reverse=True,
+              )
+              top_tag = ranked[0]
+              return top_tag, scores.get(top_tag, 0)
+
+
+          def main(report_text: str, answers_text: str) -> dict:
+              answers = _parse_answers(answers_text)
+              scores = {tag: 0 for tag in TAG_PRIORITY}
+              evidences = []
+
+              fixed_recognized = _score_fixed_answers(answers, scores, evidences)
+              semantic_recognized = _score_semantic_answers(answers, scores, evidences)
+
+              worst_t_value = _extract_worst_t_value(report_text)
+              if worst_t_value is not None:
+                  if worst_t_value <= -2.5:
+                      scores["fracture_high_risk"] += 2
+                      evidences.append("报告最低 T 值达到骨质疏松风险区间")
+                  elif worst_t_value <= -2.0:
+                      scores["fracture_high_risk"] += 1
+                      evidences.append("报告最低 T 值明显偏低")
+
+              if not fixed_recognized and not semantic_recognized:
+                  result = {
+                      "tag": "insufficient_data",
+                      "risk_level": "low",
+                      "confidence": 0.3,
+                      "reasoning": "未识别到固定量表答案,无法进入标准方案分流。",
+                      "missingEvidence": ["固定骨密度原因分析量表答案"],
+                  }
+                  return {"text": json.dumps(result, ensure_ascii=False)}
+
+              top_tag, top_score = _pick_tag(scores)
+              if top_score <= 0:
+                  result = {
+                      "tag": "insufficient_data",
+                      "risk_level": "low",
+                      "confidence": 0.4,
+                      "reasoning": "量表答案未形成明确的原因倾向,建议补充更完整病史或由医生进一步评估。",
+                      "missingEvidence": [],
+                  }
+                  return {"text": json.dumps(result, ensure_ascii=False)}
+
+              confidence = min(0.95, 0.72 + top_score * 0.05)
+              reasoning = "；".join(dict.fromkeys(evidences)) if evidences else "依据固定量表得分落入标准方案。"
+              result = {
+                  "tag": top_tag,
+                  "risk_level": TAG_RISK[top_tag],
+                  "confidence": confidence,
+                  "reasoning": reasoning,
+                  "missingEvidence": [],
+              }
+              return {"text": json.dumps(result, ensure_ascii=False)}
+        desc: 根据固定骨密度原因分析量表和报告 T 值做规则打分,输出标准方案标签
+        code_language: python3
+        outputs:
+          text:
+            type: string
+            children: null
+        selected: false
+        title: scene1_固定量表打分
+        type: code
+        variables:
+        - value_selector:
+          - '4001'
+          - input_text
+          variable: report_text
+        - value_selector:
+          - '4104'
+          - normalized_answers
+          variable: answers_text
+    - id: '4121'
+      type: custom
+      position:
+        x: 1280
+        y: 40
+      positionAbsolute:
+        x: 1280
+        y: 40
+      width: 242
+      height: 90
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      data:
+        code: |-
+          import json
+
+          SOLUTIONS = {
+              "menopause_related": {
+                  "id": "menopause_related_v1",
+                  "department": "内分泌科 / 骨质疏松门诊",
+                  "riskLevel": "medium",
+                  "oneLineConclusion": "现有答案更支持年龄或绝经相关的骨量流失,建议结合医生评估做长期管理。",
+              },
+              "vitamin_d_deficient": {
+                  "id": "vitamin_d_deficient_v1",
+                  "department": "内分泌科",
+                  "riskLevel": "medium",
+                  "oneLineConclusion": "现有答案更支持维生素 D 或日晒不足相关因素,建议进一步结合化验结果确认。",
+              },
+              "calcium_protein_deficient": {
+                  "id": "calcium_protein_deficient_v1",
+                  "department": "营养科 / 骨质疏松门诊",
+                  "riskLevel": "low",
+                  "oneLineConclusion": "现有答案更支持饮食摄入不足相关因素,可以优先从饮食与补充方案评估入手。",
+              },
+              "exercise_deficient": {
+                  "id": "exercise_deficient_v1",
+                  "department": "康复科 / 骨质疏松门诊",
+                  "riskLevel": "low",
+                  "oneLineConclusion": "现有答案更支持缺乏运动或肌力不足相关因素,建议循序增加负重训练。",
+              },
+              "medication_related": {
+                  "id": "medication_related_v1",
+                  "department": "内分泌科 / 相关慢病专科",
+                  "riskLevel": "high",
+                  "oneLineConclusion": "现有答案提示长期用药或慢病因素影响较大,建议尽快做专科评估。",
+              },
+              "fracture_high_risk": {
+                  "id": "fracture_high_risk_v1",
+                  "department": "骨科 / 骨质疏松门诊",
+                  "riskLevel": "high",
+                  "oneLineConclusion": "现有答案提示骨折高风险,建议尽快线下评估是否需要进一步检查与治疗。",
+              },
+          }
+
+
+          def _insufficient(reasoning, missing_evidence):
+              payload = {
+                  "reportType": "bone_density",
+                  "dataComplete": False,
+                  "reason": "insufficient_followup_answers",
+                  "userMessage": "当前 follow-up 答案不足以支持可靠归因,请继续补充关键信息。",
+                  "missingEvidence": missing_evidence or [],
+                  "reasoning": reasoning,
+              }
+              response = {
+                  "scene": "report",
+                  "risk_level": "low",
+                  "scene_confidence": 0.4,
+                  "payloadKind": "insufficient_data",
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+
+
+          def main(classify_text):
+              try:
+                  cls = json.loads(classify_text) if classify_text else {}
+              except Exception:
+                  cls = {}
+              if not isinstance(cls, dict):
+                  cls = {}
+
+              tag = str(cls.get("tag", "")).strip()
+              confidence = cls.get("confidence", 0.0)
+              try:
+                  confidence = float(confidence)
+              except Exception:
+                  confidence = 0.0
+              reasoning = str(cls.get("reasoning", "")).strip()
+              missing_evidence = cls.get("missingEvidence") if isinstance(cls.get("missingEvidence"), list) else []
+
+              if tag == "insufficient_data" or tag not in SOLUTIONS or confidence < 0.7:
+                  return _insufficient(reasoning, missing_evidence)
+
+              solution = SOLUTIONS[tag]
+              risk = str(cls.get("risk_level", "")).strip().lower()
+              if risk not in ("low", "medium", "high"):
+                  risk = solution["riskLevel"]
+
+              payload = {
+                  "reportType": "bone_density",
+                  "dataComplete": True,
+                  "tag": tag,
+                  "riskLevel": risk,
+                  "department": solution["department"],
+                  "oneLineConclusion": solution["oneLineConclusion"],
+                  "reasoning": reasoning,
+                  "solutionRef": solution["id"],
+              }
+              response = {
+                  "scene": "report",
+                  "risk_level": risk,
+                  "scene_confidence": max(0.7, confidence),
+                  "payloadKind": "complete",
+                  "payload": payload,
+              }
+              return {"output": json.dumps(response, ensure_ascii=False)}
+        code_language: python3
+        desc: 仅在 follow-up 归因有足够证据时输出 complete,否则返回 insufficient_data
+        outputs:
+          output:
+            type: string
+            children: null
+        selected: false
+        title: scene1_done_payload
+        type: code
+        variables:
+        - value_selector:
+          - '4120'
+          - text
+          variable: classify_text
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.5
+  rag_pipeline_variables: []

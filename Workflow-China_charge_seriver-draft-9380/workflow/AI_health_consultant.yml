@@ -1,0 +1,652 @@
+app:
+  description: 销售小程序 AI 健康咨询模块 - 三场景分流（体检报告解读 / 症状咨询 / 健康产品问答）。AI 不做诊断、不开药、不承诺疗效；场景二强制就医提示；场景三走知识库。
+  icon: 🩺
+  icon_background: '#E8F5E9'
+  icon_type: emoji
+  mode: workflow
+  name: AI_health_consultant
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/volcengine_maas:0.0.51@10500d8c8e350242a0db2dda11c276685ab947ec0b41f9b94ea73c2919aacab7
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/tongyi:0.2.0@4e5891a2f4fff19b005a662a1fadff0e56b62b2dd1b4a93bdffae83c5b38b05e
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .PDF
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: true
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      config:
+        inputs:
+          enabled: false
+        keywords: []
+        outputs:
+          enabled: false
+      enabled: false
+      type: keywords
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: if-else
+      id: edge-3001-3002
+      source: '3001'
+      sourceHandle: source
+      target: '3002'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: knowledge-retrieval
+      id: edge-3002-3006
+      source: '3002'
+      sourceHandle: 'true'
+      target: '3006'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: edge-3006-3007
+      source: '3006'
+      sourceHandle: source
+      target: '3007'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: variable-aggregator
+      id: edge-3007-3014
+      source: '3007'
+      sourceHandle: source
+      target: '3014'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: if-else
+        targetType: knowledge-retrieval
+      id: edge-3002-3009
+      source: '3002'
+      sourceHandle: 'false'
+      target: '3009'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: edge-3009-3010
+      source: '3009'
+      sourceHandle: source
+      target: '3010'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: variable-aggregator
+      id: edge-3010-3014
+      source: '3010'
+      sourceHandle: source
+      target: '3014'
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: variable-aggregator
+        targetType: end
+      id: edge-3014-3015
+      source: '3014'
+      sourceHandle: source
+      target: '3015'
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        desc: 接收客户文本 + 可选的体检报告/产品图片，按 image 存在分流
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: input_text
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: input_text
+        - label: language
+          max_length: 48
+          options: []
+          required: false
+          type: text-input
+          variable: language
+        - allowed_file_extensions:
+          - .jpg
+          - .jpeg
+          - .png
+          - .webp
+          - .gif
+          - .pdf
+          allowed_file_types:
+          - image
+          allowed_file_upload_methods:
+          - local_file
+          - remote_url
+          label: input_image
+          required: false
+          type: file-list
+          variable: input_image
+      height: 205
+      id: '3001'
+      position:
+        x: 0
+        y: 300
+      positionAbsolute:
+        x: 0
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: contains
+            id: cond-has-image
+            sub_variable_condition:
+              case_id: 862108f4-4356-499f-b317-e9e872d24a19
+              conditions: []
+              logical_operator: and
+            value: ''
+            varType: array[file]
+            variable_selector:
+            - '3001'
+            - input_image
+          id: 'true'
+          logical_operator: and
+        desc: 有图（体检报告/产品图）走视觉分支；纯文本走症状/产品咨询分支
+        logical_operator: and
+        selected: false
+        title: 路由-按图片存在
+        type: if-else
+      height: 168
+      id: '3002'
+      position:
+        x: 350
+        y: 300
+      positionAbsolute:
+        x: 350
+        y: 300
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - cJ687vaaJbsFc7MghKK/6gS+0+mJHna8xcsp3EgZpz4FTn6Z2PZ8MtU8c36SDHxB
+        desc: 用客户文本作为 query 检索产品知识库；图片理解由多模态 LLM 承担
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: qwen3-rerank
+            provider: langgenius/tongyi/tongyi
+          score_threshold: 0.65
+          top_k: 3
+          weights: null
+        query_attachment_selector: []
+        query_variable_selector:
+        - '3001'
+        - input_text
+        retrieval_mode: multiple
+        selected: false
+        title: 知识库检索_视觉分支
+        type: knowledge-retrieval
+      height: 134
+      id: '3006'
+      position:
+        x: 700
+        y: 80
+      positionAbsolute:
+        x: 700
+        y: 80
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '3006'
+          - result
+        desc: 体检报告解读 / 产品图分析；按场景执行固定输出模板
+        model:
+          completion_params:
+            max_tokens: 4096
+            temperature: 0.5
+            top_p: 1
+          mode: chat
+          name: Doubao-Seed-2.0-lite
+          provider: langgenius/volcengine_maas/volcengine_maas
+        prompt_template:
+        - id: sys-prompt-vision
+          role: system
+          text: '# 角色
+
+            你是销售小程序中的 AI 健康咨询助手。面向 C 端客户，配合销售场景回答健康相关问题。
+
+
+            # 你的边界（必须遵守）
+
+            - 只做三类工作：体检报告解读、不适症状风险提示、健康产品问题客观解答。
+
+            - 不做：疾病诊断、药物处方、治疗方案、停药/换药建议、疗效承诺、产品替代药物、保证有效、贬低医生。
+
+            - 用「可能 / 建议关注 / 建议复查 / 建议咨询医生 / 作为健康管理参考 / 不能替代医生诊断和治疗」这类措辞。
+
+            - 避免使用：确诊、治愈、根治、保证有效、一定好转、不用去医院、替代药物、停药、换药、治疗疾病、预防疾病。
+
+
+            # 场景识别（基于客户文本 + 图片内容）
+
+            优先识别并按以下顺序处理：
+
+            1) 客户描述疼痛/疲劳/胸闷/头晕/失眠等身体不适 → 场景二「症状咨询」，**必须包含就医提示**。
+
+            2) 客户上传或描述体检指标、骨密度报告、血脂血糖报告等 → 场景一「体检报告解读」。
+
+            3) 客户问某个营养品/保健食品/普通食品/成分是否适合 → 场景三「健康产品问答」，**必须以知识库内容为主**。
+
+            4) 混合问题优先级：症状风险 > 体检报告 > 产品问题。
+
+
+            # 场景一输出模板：体检报告解读
+
+            【体检报告解读】
+
+            1. 一句话结论：先告诉客户严重程度等级（正常 / 需关注 / 需复查 / 需就医）。
+
+            2. 您处在哪个水平：用通俗分级表达，必要时画文字图。
+
+            3. 异常指标解释：列出异常项，用人话说明含义。
+
+            4. 风险提示：哪些情况需要进一步确认或咨询医生。
+
+            5. 建议复查或确认：复查项目、可咨询科室。
+
+            6. 营养与生活方式建议：饮食、运动、睡眠、体重管理。
+
+            注意：每份报告都有边界，AI 不下诊断，不推荐药物。
+
+
+            # 场景二输出模板：症状咨询（必须有就医提示）
+
+            【症状咨询分析】
+
+            1. 您描述的不适：总结客户当前的不舒服表现。
+
+            2. 可能相关方向：列出可能相关健康方向，**不要确诊**。
+
+            3. 为什么建议就医确认：说明仅凭症状无法判断原因。
+
+            4. 需要警惕的情况：列出尽快就医的红旗信号。
+
+            5. 建议咨询方向：可能咨询的科室或检查方向。
+
+            6. 暂时可注意的生活方式：安全、基础、不替代治疗的建议。
+
+            **必含**：「仅凭症状描述不能判断具体原因，建议及时就医或咨询医生确认」。
+
+            严重症状（胸痛/呼吸困难/剧烈疼痛/发热/肢体无力/黑便）必须提示尽快就医。
+
+
+            # 场景三输出模板：健康产品问答
+
+            【健康产品问题解答】
+
+            1. 产品或成分是什么：客观说明产品类型/成分/营养方向。
+
+            2. 可能适合的人群：一般适合哪些健康管理场景。
+
+            3. 需要谨慎的人群：哪些人需要先咨询医生。
+
+            4. 不能替代什么：明确不能替代药物/诊断/治疗。
+
+            5. 如何理性使用：结合饮食/运动/体检指标/个人情况判断。
+
+            6. 如需个性化建议：提示结合体检报告/年龄/用药/既往病史分析。
+
+            必须基于参考资料回答，参考资料不足时明确说明并给出谨慎建议。
+
+
+            # 输出要求
+
+            - 输出语言为 {{#3001.language#}}。
+
+            - 直接输出最终客服回复。
+
+            - 不输出 JSON、markdown 标题、内部分析过程。
+
+            - 回复兼顾专业性、可执行性和服务感。'
+        - id: user-prompt-vision
+          role: user
+          text: '客户问题：{{#3001.input_text#}}
+
+
+            参考资料（产品知识库）：
+
+            {{#context#}}
+
+
+            请结合客户上传的图片（可能是体检报告或产品图）、客户问题、参考资料回答。优先按上述场景识别与模板输出。如果场景判断为症状类，必须包含就医提示。'
+        selected: false
+        title: 大模型_视觉分支
+        type: llm
+        vision:
+          configs:
+            detail: high
+            variable_selector:
+            - '3001'
+            - input_image
+          enabled: true
+      height: 132
+      id: '3007'
+      position:
+        x: 1050
+        y: 80
+      positionAbsolute:
+        x: 1050
+        y: 80
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - cJ687vaaJbsFc7MghKK/6gS+0+mJHna8xcsp3EgZpz4FTn6Z2PZ8MtU8c36SDHxB
+        desc: 症状类无图场景下用客户文本检索；产品问题走同一库，由 LLM 系统提示区分场景
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: qwen3-rerank
+            provider: langgenius/tongyi/tongyi
+          score_threshold: 0.55
+          top_k: 3
+          weights: null
+        query_attachment_selector: []
+        query_variable_selector:
+        - '3001'
+        - input_text
+        retrieval_mode: multiple
+        selected: false
+        title: 知识库检索_文本分支
+        type: knowledge-retrieval
+      height: 150
+      id: '3009'
+      position:
+        x: 700
+        y: 520
+      positionAbsolute:
+        x: 700
+        y: 520
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '3009'
+          - result
+        desc: 症状咨询 / 健康产品问答（纯文本），场景二强制就医提示
+        model:
+          completion_params: {}
+          mode: chat
+          name: Doubao-Seed-2.0-lite
+          provider: langgenius/volcengine_maas/volcengine_maas
+        prompt_template:
+        - id: sys-prompt-text
+          role: system
+          text: '# 角色
+
+            你是销售小程序中的 AI 健康咨询助手。面向 C 端客户，配合销售场景回答健康相关问题。
+
+
+            # 你的边界（必须遵守）
+
+            - 只做三类工作：体检报告解读、不适症状风险提示、健康产品问题客观解答。
+
+            - 不做：疾病诊断、药物处方、治疗方案、停药/换药建议、疗效承诺、产品替代药物、保证有效、贬低医生。
+
+            - 用「可能 / 建议关注 / 建议复查 / 建议咨询医生 / 作为健康管理参考 / 不能替代医生诊断和治疗」这类措辞。
+
+            - 避免使用：确诊、治愈、根治、保证有效、一定好转、不用去医院、替代药物、停药、换药、治疗疾病、预防疾病。
+
+
+            # 场景识别（基于客户文本）
+
+            1) 客户描述疼痛/疲劳/胸闷/头晕/失眠等身体不适 → 场景二「症状咨询」，**必须包含就医提示**。
+
+            2) 客户描述体检指标、报告 → 场景一「体检报告解读」。
+
+            3) 客户问某个营养品/保健食品/普通食品/成分是否适合 → 场景三「健康产品问答」，**必须以知识库内容为主**。
+
+
+            # 场景一输出模板：体检报告解读
+
+            【体检报告解读】
+
+            1. 一句话结论：先告诉客户严重程度等级。
+
+            2. 您处在哪个水平：通俗分级表达。
+
+            3. 异常指标解释：列出异常项。
+
+            4. 风险提示：哪些情况需要进一步确认。
+
+            5. 建议复查或确认：复查项目、可咨询科室。
+
+            6. 营养与生活方式建议：饮食、运动、睡眠、体重管理。
+
+            AI 不下诊断，不推荐药物。
+
+
+            # 场景二输出模板：症状咨询（必须有就医提示）
+
+            【症状咨询分析】
+
+            1. 您描述的不适：总结客户当前的不舒服表现。
+
+            2. 可能相关方向：列出可能相关健康方向，**不要确诊**。
+
+            3. 为什么建议就医确认：仅凭症状无法判断原因。
+
+            4. 需要警惕的情况：尽快就医的红旗信号（胸痛/呼吸困难/剧烈疼痛/发热/肢体无力/黑便）。
+
+            5. 建议咨询方向：可能咨询的科室或检查方向。
+
+            6. 暂时可注意的生活方式：安全、基础、不替代治疗。
+
+            **必含**：「仅凭症状描述不能判断具体原因，建议及时就医或咨询医生确认」。
+
+            客户只要描述身体不适，必须出现就医提示；不能只说「去医院」，要说明原因、可能方向、红旗信号、安全事项。
+
+
+            # 场景三输出模板：健康产品问答
+
+            【健康产品问题解答】
+
+            1. 产品或成分是什么：客观说明产品类型/成分/营养方向。
+
+            2. 可能适合的人群：一般适合哪些健康管理场景。
+
+            3. 需要谨慎的人群：哪些人需要先咨询医生。
+
+            4. 不能替代什么：不能替代药物/诊断/治疗。
+
+            5. 如何理性使用：结合饮食/运动/体检指标/个人情况。
+
+            6. 如需个性化建议：提示结合体检报告/年龄/用药/既往病史。
+
+            必须基于参考资料回答，参考资料不足时明确说明并给出谨慎建议。
+
+
+            # 输出要求
+
+            - 输出语言为 {{#3001.language#}}。
+
+            - 直接输出最终客服回复。
+
+            - 不输出 JSON、markdown 标题、内部分析过程。
+
+            - 回复兼顾专业性、可执行性和服务感。'
+        - id: user-prompt-text
+          role: user
+          text: '客户问题：{{#3001.input_text#}}
+
+
+            参考资料（产品知识库）：
+
+            {{#context#}}
+
+
+            请基于客户问题和参考资料按上述场景识别与模板输出。如果客户描述任何身体不适（场景二），必须包含就医提示。'
+        selected: false
+        title: 大模型_文本分支
+        type: llm
+        vision:
+          enabled: false
+      height: 132
+      id: '3010'
+      position:
+        x: 1050
+        y: 520
+      positionAbsolute:
+        x: 1050
+        y: 520
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        advanced_settings:
+          group_enabled: false
+          groups: []
+        desc: 视觉/文本分支输出合并到 end.output，谁先到取谁
+        output_type: string
+        selected: false
+        title: 变量聚合
+        type: variable-aggregator
+        variables:
+        - - '3007'
+          - text
+        - - '3010'
+          - text
+      height: 178
+      id: '3014'
+      position:
+        x: 1400
+        y: 300
+      positionAbsolute:
+        x: 1400
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: 工作流终点，返回最终健康咨询回复
+        outputs:
+        - value_selector:
+          - '3014'
+          - output
+          variable: output
+        selected: false
+        title: 结束
+        type: end
+      height: 116
+      id: '3015'
+      position:
+        x: 1750
+        y: 300
+      positionAbsolute:
+        x: 1750
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 241.04327285374006
+      y: 258.4659340806431
+      zoom: 0.34722222222222227
+  rag_pipeline_variables: []

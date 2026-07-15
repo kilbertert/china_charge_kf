@@ -1,0 +1,85 @@
+- prefix: biz
+  slug: pricing
+  name: 计费规则
+  summary: 充电桩基础计费、海外计费的费率规则
+  sections:
+    - title: 基础计费
+      content: |
+        - 按 kWh(度)为单位计费
+        - 基础费率: 0.5 - 1.5 元/度
+        - 因地域、时段不同有差异
+    - title: 海外计费
+      content: |
+        - 货币: USD / EUR / VND
+        - 按当地电费政策
+  examples:
+    - 国内某城市 7kW 家充桩 23:00 - 07:00 谷时段 0.4 元/度
+    - 海外 NA 区 11kW 公共桩 $0.18/kWh
+  keywords: [计费规则, pricing, 费率, kWh, 度]
+
+- prefix: biz
+  slug: settlement
+  name: 分润结算规则
+  summary: 运营商与平台的分润比例、结算周期
+  sections:
+    - title: 分润比例
+      content: |
+        - 运营商: 70%
+        - 平台抽成: 30%
+    - title: 结算周期
+      content: |
+        - T+7 自动结算到运营商账户
+        - 可提现到银行卡或支付宝
+  examples:
+    - 单日充电收入 1000 元,运营商分得 700 元,平台 300 元
+  keywords: [分润, settlement, 结算, 运营商]
+
+- prefix: biz
+  slug: refund
+  name: 退款规则
+  summary: 退款时效、流程、限制
+  sections:
+    - title: 时效
+      content: |
+        - 7 天内未使用订单: 全额退款
+        - 7-15 天: 按使用比例退款
+        - 15 天外: 不可退款
+    - title: 流程
+      content: |
+        1. 用户发起退款
+        2. 客服审核(24h)
+        3. 财务复核(48h)
+        4. 打款(1-3 工作日)
+  keywords: [退款, refund, 退款规则, 时效]
+
+- prefix: biz
+  slug: coupon
+  name: 优惠券规则
+  summary: 平台券和站点券的区别与限制
+  sections:
+    - title: 平台券
+      content: 满减,有效期 30 天,全平台通用
+    - title: 站点券
+      content: 折扣,有效期 15 天,仅限指定站点
+    - title: 限制
+      content: |
+        - 不可叠加
+        - 不可用于退款抵扣
+  keywords: [优惠券, coupon, 平台券, 站点券]
+
+- prefix: biz
+  slug: home_vs_public
+  name: 家充 vs 公共桩
+  summary: 两种充电桩类型的使用规则对比
+  sections:
+    - title: 家充
+      content: |
+        - 单次充电上限 8 小时
+        - 需绑定用户
+        - 私人桩共享
+    - title: 公共桩
+      content: |
+        - 无单次时间限制
+        - 需扫码启动
+        - 运营商分润
+  keywords: [家充, 公共桩, home charger, public pile]

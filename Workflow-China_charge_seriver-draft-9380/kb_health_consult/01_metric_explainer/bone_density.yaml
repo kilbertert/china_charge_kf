@@ -1,0 +1,45 @@
+# 01 指标解释库 — 体检报告核心指标
+骨密度:
+  T值:
+    aliases: ["T 值", "T-score", "T score"]
+    normal_range: [-1.0, +∞)
+    bone_loss_range: (-2.5, -1.0]
+    osteoporosis_range: [-∞, -2.5)
+    grade_a_threshold: T值 >= -1.0
+    grade_b_threshold: -2.5 < T值 < -1.0
+    grade_c_threshold: T值 <= -2.5
+    measurement_sites: [腰椎L1-L4, 股骨颈, 全髋, 桡骨远端1/3]
+    display_unit: T-score
+    common_reference: WHO 诊断标准
+    human_readable:
+      正常: 您的骨密度在同龄人正常范围
+      骨量减少: 您的骨密度比同龄人略低,可能发展为骨质疏松
+      骨质疏松: 您的骨密度明显低于同龄人,骨折风险增加
+
+维生素D:
+  25-OH维生素D:
+    aliases: ["25-OH-D", "25(OH)D"]
+    normal_range: [30, 100]
+    insufficiency_range: [20, 30)
+    deficiency_range: [0, 20)
+    unit: ng/mL
+    human_readable:
+      正常: 维生素D水平充足
+      不足: 维生素D轻度不足,可能影响钙吸收
+      缺乏: 维生素D严重缺乏,建议补充
+
+血钙:
+  血钙:
+    aliases: ["Ca", "血清钙"]
+    normal_range: [2.10, 2.55]
+    unit: mmol/L
+    human_readable:
+      正常: 血钙水平正常
+      偏低: 血钙偏低,可能与维生素D缺乏有关
+      偏高: 血钙偏高,需排查原因
+
+BMD:
+  骨密度值:
+    aliases: ["BMD", "骨密度 g/cm²"]
+    unit: g/cm²
+    note: BMD 是绝对值,通常需要与同性别同年龄的 Z值 / T值 一起解读

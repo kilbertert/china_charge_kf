@@ -1,0 +1,81 @@
+# 02 成因量表库 — 风险因素问卷题库
+通用筛查题:
+  - id: q_age
+    text: 您的年龄段是?
+    type: single_select
+    options:
+      - key: u40
+        label: 40岁以下
+      - key: 40_50
+        label: 40-50岁
+      - key: 50_60
+        label: 50-60岁
+      - key: o60
+        label: 60岁以上
+
+  - id: q_gender
+    text: 您的性别是?
+    type: single_select
+    options:
+      - key: female
+        label: 女
+      - key: male
+        label: 男
+
+骨密度专项:
+  - id: q_menopause
+    text: 您是否已绝经?
+    type: yes_no
+  - id: q_fragility_fracture
+    text: 您或您的直系亲属是否有过轻微摔倒后骨折?
+    type: yes_no
+  - id: q_family_osteoporosis
+    text: 您的直系亲属中是否有人确诊过骨质疏松?
+    type: yes_no
+  - id: q_sun_exposure
+    text: 您平均每天日晒时间?
+    type: single_select
+    options:
+      - key: lt_15min
+        label: 少于15分钟
+      - key: 15_30min
+        label: 15-30分钟
+      - key: gt_30min
+        label: 多于30分钟
+  - id: q_calcium_intake
+    text: 您每天喝牛奶或吃奶制品的量?
+    type: single_select
+    options:
+      - key: none
+        label: 基本不喝
+      - key: low
+        label: 偶尔少量
+      - key: medium
+        label: 每天约200ml
+      - key: high
+        label: 每天500ml以上
+  - id: q_strength_training
+    text: 您是否进行规律的力量训练或抗阻运动?
+    type: yes_no
+  - id: q_steroid_use
+    text: 您是否长期使用糖皮质激素?
+    type: yes_no
+  - id: q_chronic_disease
+    text: 您是否确诊过以下慢性病?
+    type: multi_select
+    options:
+      - key: diabetes
+        label: 糖尿病
+      - key: thyroid
+        label: 甲状腺疾病
+      - key: kidney
+        label: 慢性肾病
+      - key: liver
+        label: 慢性肝病
+      - key: none
+        label: 都没有
+
+通用危险信号筛查:
+  - id: q_recent_fall
+    text: 您最近3个月是否有过跌倒?
+    type: yes_no

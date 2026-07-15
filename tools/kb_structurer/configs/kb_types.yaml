@@ -1,0 +1,49 @@
+# KB 类型配置 — Dify 知识库与 structurer 解析器的映射
+
+kbs:
+  - id: china-charge-menu
+    type: menu
+    description: 充电桩后台菜单结构(项目功能表格)
+    parser: csv
+    source_csv: data_processed.csv
+    output_dir: /tmp/menu_docs/
+    indexing_technique: high_quality
+
+  - id: china-charge-faq
+    type: faq
+    description: 常见问题解答(21 节点)
+    parser: xlsx
+    source_xlsx: 常见问题解答.xlsx
+    topic_mapping: configs/topic_mapping.yaml
+    output_dir: /tmp/seed_faq/
+    indexing_technique: high_quality
+
+  - id: china-charge-business-rules
+    type: business_rule
+    description: 业务规则(计费/分润/退款等)
+    parser: manual
+    template: templates/business_rule.md.j2
+    data: configs/biz_seed.yaml
+    output_dir: /tmp/seed_biz/
+    indexing_technique: high_quality
+
+  - id: china-charge-process-def
+    type: process
+    description: 业务流程定义(SOP 拆分)
+    parser: docx
+    source_docx: 32-6.17（充电桩知识库）/Standard Operating Manual for Charging Piles.docx
+    sections:
+      - 站点创建
+      - 运营商入驻
+      - 设备投放
+      - 退款流程
+      - 充电订单
+    output_dir: /tmp/seed_proc/
+    indexing_technique: high_quality
+
+# 通用设置
+defaults:
+  api_base: http://127.0.0.1:8501
+  admin_email: 2634141585@qq.com
+  sleep_seconds: 0.15
+  max_retries: 3

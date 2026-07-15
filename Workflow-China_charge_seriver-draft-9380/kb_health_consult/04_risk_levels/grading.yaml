@@ -1,0 +1,70 @@
+# 04 风险等级库 — T值分级与通用风险映射
+T值分级标准(WHO):
+  normal:
+    t_value_range: [-1.0, +∞)
+    human_label: 正常
+    color: 绿
+    urgency: low
+  bone_loss:
+    t_value_range: (-2.5, -1.0)
+    human_label: 骨量减少
+    color: 黄
+    urgency: medium
+  osteoporosis:
+    t_value_range: [-∞, -2.5)
+    human_label: 骨质疏松
+    color: 红
+    urgency: high
+
+维生素D分级标准:
+  正常: { range: [30, +∞), color: 绿 }
+  不足: { range: [20, 30), color: 黄 }
+  缺乏: { range: [0, 20), color: 红 }
+
+血钙分级_mmol_per_L:
+  正常: { range: [2.10, 2.55], color: 绿 }
+  偏低: { range: [0, 2.10), color: 黄 }
+  偏高: { range: (2.55, +∞), color: 黄 }
+
+场景二危险信号(urgent_keywords):
+  - 胸痛
+  - 胸闷
+  - 呼吸困难
+  - 气短
+  - 一侧小腿肿胀
+  - 小腿肿胀
+  - 小腿突然
+  - 不能走
+  - 不能站
+  - 不能站立
+  - 不能走路
+  - 红肿热痛
+  - 麻木无力
+  - 肢体无力
+  - 发热寒战
+  - 寒战
+  - 突然剧烈
+  - 剧烈疼痛
+  - 外伤后
+场景二_urgent_response:
+  oneLineConclusion: 检测到危险信号,请立即就医
+  riskLevel: urgent
+  redFlag:
+    - icon: 🚨
+      title: 立即就医
+      content: 检测到危险信号,请立即前往急诊或拨打 120。
+    - icon: ⛔
+      title: 不要延误
+      content: 血栓、肺栓塞、急性神经压迫等需在数小时内处理,不要观望。
+    - icon: 🚫
+      title: 避免按摩
+      content: 腿部肿胀时不要按摩、热敷或剧烈活动,以免加重风险。
+  department: 急诊 / 血管外科
+  nextStep: 立即前往急诊或拨打 120
+  medical_referral_priority: urgent
+
+通用安全信号提示语:
+  解读必须包含: "本助手仅能基于您提供的报告进行基础解读,不能替代专业医疗建议"
+  报告解读必须包含: "建议至专业科室就诊评估"
+  产品问答必须包含: "本助手无法推荐产品治疗或根治疾病"
+  所有场景必须包含: "严禁确诊/开药/承诺疗效"

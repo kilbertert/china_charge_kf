@@ -1,0 +1,1758 @@
+app:
+  description: 'App A: 知识库问答 (L1+L3 A/B/C+FAQ), 无 bug 状态机'
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: charge_charging_A_kbqa
+  use_icon_as_answer_icon: false
+dependencies:
+  - current_identifier:
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: 
+        langgenius/volcengine_maas:0.0.51@10500d8c8e350242a0db2dda11c276685ab947ec0b41f9b94ea73c2919aacab7
+      version:
+  - current_identifier:
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: 
+        langgenius/tongyi:0.2.0@4e5891a2f4fff19b005a662a1fadff0e56b62b2dd1b4a93bdffae83c5b38b05e
+      version:
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+    - description: 是否正在等待用户澄清功能板块(对应架构"流程1-N:再问对话提问"的回流态)
+      id: 5fa8c5e1-4a2e-4b3c-8d7e-1a2b3c4d5e6f
+      name: cv_pending_clarify
+      value: false
+      value_type: boolean
+    - description: 最近一次确认到的功能板块名称
+      id: 6fb9d6e2-5b3f-5c4d-9e8f-2b3c4d5e6f7a
+      name: cv_matched_module
+      value: ''
+      value_type: string
+    - description: 最近一次命中的意图路径(a/b/c/d/faq/clarify/custom)
+      id: 7ca0e1f3-6c4a-6d5e-af9a-3c4d5e6f7a8b
+      name: cv_last_intent
+      value: ''
+      value_type: string
+    - description: 当前会话内是否已记录过bug(避免路径D重复录入)
+      id: 8ad1f2a4-7d5a-7e6f-bf0b-4d5e6f7a8b9c
+      name: cv_bug_logged
+      value: false
+      value_type: boolean
+    - description: '二阶段主状态机: IDLE/await_confirm_identity/await_diff/await_diff_decision/await_confirm_modify/await_confirm_new'
+      id: 9be2e3b5-8e6b-9f7c-ac1c-5e6f7a8b9c0d
+      name: cv_flow_state
+      value: IDLE
+      value_type: string
+    - description: 当前相关行的企微 record_id (N14修改/N19缓存关联用)
+      id: acf3f4c6-9f7c-a08d-bd2d-6f7a8b9c0d1e
+      name: cv_record_id
+      value: ''
+      value_type: string
+    - description: 旧行内容快照 (N9对比 + N17相关性识别的历史锚点)
+      id: bd04e5d7-a08d-b19e-ce3e-7a8b9c0d1e2f
+      name: cv_row_summary
+      value: ''
+      value_type: string
+    - description: N5转写后的标准化中文反馈 (N9对比 + N17相关性识别的新内容锚点)
+      id: ce15f6e8-b19e-c2af-df4f-8b9c0d1e2f3a
+      name: cv_feedback_zh
+      value: ''
+      value_type: string
+    - description: N5转写的模块字段 (跨轮保留供N16写表/N17锚点)
+      id: a1b2c3d4-0001-4000-8000-000000000001
+      name: cv_mokuai
+      value: ''
+      value_type: string
+    - description: N5转写的环境字段 (跨轮保留供N16写表)
+      id: a1b2c3d4-0001-4000-8000-000000000002
+      name: cv_huanjing
+      value: ''
+      value_type: string
+    - description: N5转写的类型字段 (跨轮保留供N16写表)
+      id: a1b2c3d4-0001-4000-8000-000000000003
+      name: cv_leixing
+      value: ''
+      value_type: string
+    - description: 信息不足引导补充计数(0=未引导,1=引导1次,2=引导2次,>=2触发兜底待确认)
+      id: a1b2c3d4-0001-4000-8000-000000000004
+      name: cv_clarify_count
+      value: 0
+      value_type: number
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+        - JPG
+        - PNG
+        - JPEG
+        - WEBP
+        - PDF
+      allowed_file_types:
+        - image
+        - document
+      allowed_file_upload_methods:
+        - remote_url
+        - local_file
+      enabled: true
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+          - local_file
+          - remote_url
+      number_limits: 3
+    opening_statement: 您好,我是充电桩智能客服。请问您想咨询:1)功能位置 2)业务规则 3)流程问题 
+      4)Bug反馈?可直接描述您的问题。
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+      - data:
+          sourceType: start
+          targetType: code
+        id: e-6001-6002
+        source: '6001'
+        sourceHandle: source
+        target: '6002'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: start
+          targetType: code
+        id: e-6001-6901
+        source: '6001'
+        sourceHandle: source
+        target: '6901'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: variable-assigner
+        id: e-6003-in_clarify-6004
+        source: '6003'
+        sourceHandle: in_clarify
+        target: '6004'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: question-classifier
+        id: e-6003-default-6101
+        source: '6003'
+        sourceHandle: default
+        target: '6101'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-assigner
+          targetType: question-classifier
+        id: e-6004-6101
+        source: '6004'
+        sourceHandle: source
+        target: '6101'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: variable-assigner
+        id: e-6101-6104
+        source: '6101'
+        sourceHandle: class_unclear
+        target: '6104'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-assigner
+          targetType: llm
+        id: e-6104-6105
+        source: '6104'
+        sourceHandle: source
+        target: '6105'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: variable-assigner
+        id: e-6101-6106
+        source: '6101'
+        sourceHandle: class_custom
+        target: '6106'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-assigner
+          targetType: llm
+        id: e-6106-6107
+        source: '6106'
+        sourceHandle: source
+        target: '6107'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: variable-assigner
+        id: e-6101-6108
+        source: '6101'
+        sourceHandle: class_basic
+        target: '6108'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-assigner
+          targetType: knowledge-retrieval
+        id: e-6108-6102
+        source: '6108'
+        sourceHandle: source
+        target: '6102'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: knowledge-retrieval
+          targetType: llm
+        id: e-6102-6103-llm
+        source: '6102'
+        sourceHandle: source
+        target: '6103-llm'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: code
+        id: e-6103-llm-6103-parse
+        source: '6103-llm'
+        sourceHandle: source
+        target: '6103-parse'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: if-else
+        id: e-6103-parse-6103-if
+        source: '6103-parse'
+        sourceHandle: source
+        target: '6103-if'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: variable-assigner
+        id: e-6103-if-relevant-6110
+        source: '6103-if'
+        sourceHandle: relevant
+        target: '6110'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: question-classifier
+        id: e-6103-if-default-6201
+        source: '6103-if'
+        sourceHandle: default
+        target: '6201'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-assigner
+          targetType: llm
+        id: e-6110-6111
+        source: '6110'
+        sourceHandle: source
+        target: '6111'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: llm
+        id: e-6201-6210
+        source: '6201'
+        sourceHandle: class_a
+        target: '6210'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: knowledge-retrieval
+        id: e-6210-6211
+        source: '6210'
+        sourceHandle: source
+        target: '6211'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: knowledge-retrieval
+          targetType: llm
+        id: e-6211-6212
+        source: '6211'
+        sourceHandle: source
+        target: '6212'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: knowledge-retrieval
+        id: e-6201-6220
+        source: '6201'
+        sourceHandle: class_b
+        target: '6220'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: knowledge-retrieval
+          targetType: llm
+        id: e-6220-6221
+        source: '6220'
+        sourceHandle: source
+        target: '6221'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: knowledge-retrieval
+        id: e-6201-6230
+        source: '6201'
+        sourceHandle: class_c
+        target: '6230'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: knowledge-retrieval
+          targetType: llm
+        id: e-6230-6231
+        source: '6230'
+        sourceHandle: source
+        target: '6231'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-6105-6098
+        source: '6105'
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-6107-6098
+        source: '6107'
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-6111-6098
+        source: '6111'
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-6212-6098
+        source: '6212'
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-6221-6098
+        source: '6221'
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-6231-6098
+        source: '6231'
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-aggregator
+          targetType: answer
+        id: e-6098-6099
+        source: '6098'
+        sourceHandle: source
+        target: '6099'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: if-else
+        id: e-6002-6003
+        source: '6002'
+        sourceHandle: source
+        target: '6003'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: question-classifier
+          targetType: code
+        id: e-6201-d-switch
+        source: '6201'
+        sourceHandle: class_d
+        target: 6201-switch-bug
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: answer
+        id: e-6201-switch-6098
+        source: 6201-switch-bug
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+      - id: e-6101-ood-6109out
+        source: '6101'
+        sourceHandle: class_out_of_domain
+        target: 6109-out
+        targetHandle: target
+        type: custom
+      - id: e-6109out-6098
+        source: 6109-out
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+    nodes:
+      - data:
+          selected: false
+          title: Start
+          type: start
+          variables:
+            - default: ''
+              label: 语言(可选, 留空则自动检测)
+              options:
+                - zh
+                - en
+                - vi
+                - th
+                - ne
+                - ''
+              required: false
+              type: select
+              variable: input_language
+            - default: ''
+              label: 端类型
+              options:
+                - user
+                - butler
+                - pc
+                - ''
+              required: false
+              type: select
+              variable: input_hint_endpoint
+            - default: ''
+              label: 地域
+              options:
+                - cn
+                - overseas
+                - ''
+              required: false
+              type: select
+              variable: input_hint_region
+        height: 200
+        id: '6001'
+        position:
+          x: -760
+          y: 0
+        positionAbsolute:
+          x: -760
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          code: "def main(query: str, input_language: str) -> dict:\n    text = (query
+            or \"\").strip()\n    if input_language and input_language.strip():\n\
+            \        lang = input_language.strip()\n    else:\n        cjk = sum(1
+            for c in text if '\\u4e00' <= c <= '\\u9fff')\n        # 泰文 0x0E00-0x0E7F;
+            尼泊尔/天城文 0x0900-0x097F\n        thai = any(0x0E00 <= ord(c) <= 0x0E7F for
+            c in text)\n        devanagari = any(0x0900 <= ord(c) <= 0x097F for c
+            in text)\n        vi_chars = \"\\u0103\\u00e2\\u0111\\u00ea\\u00f4\\u01a1\\\
+            u01b0\\u0102\\u00c2\\u0110\\u00ca\\u00d4\\u01a0\\u01af\"\n        vi_chars
+            += \"\\u00e1\\u00e0\\u1ea3\\u00e3\\u1ea1\\u1eaf\\u1eb1\\u1eb3\\u1eb5\\\
+            u1eb7\\u1ea5\\u1ea7\\u1ea9\\u1eab\\u1ead\"\n        vi_chars += \"\\u00e9\\\
+            u00e8\\u1ebb\\u1ebd\\u1eb9\\u1ebf\\u1ec1\\u1ec3\\u1ec5\\u1ec7\\u00ed\\\
+            u00ec\\u1ec9\\u00ee\\u1ecb\"\n        vi_chars += \"\\u00f3\\u00f2\\u1ecf\\\
+            u00f5\\u1ecd\\u1ed1\\u1ed3\\u1ed5\\u1ed7\\u1ed9\\u1edb\\u1edd\\u1edf\\\
+            u1ee1\\u1ee3\"\n        vi_chars += \"\\u00fa\\u00f9\\u1ee5\\u00fb\\u1ee7\\\
+            u1ee9\\u1eeb\\u1eed\\u1eef\\u1ef1\\u00fd\\u1ef3\\u1ef5\\u1ef7\\u1ef9\"\
+            \n        if thai:\n            lang = \"th\"\n        elif devanagari:\n\
+            \            lang = \"ne\"\n        elif any(c in vi_chars for c in text):\n\
+            \            lang = \"vi\"\n        elif cjk > 0:\n            lang =
+            \"zh\"\n        else:\n            lang = \"en\"\n    return {\"query_text\"\
+            : text, \"language\": lang}\n"
+          code_language: python3
+          outputs:
+            language:
+              children:
+              type: string
+            query_text:
+              children:
+              type: string
+          selected: false
+          title: code_准备本轮输入
+          type: code
+          variables:
+            - value_selector:
+                - sys
+                - query
+              variable: query
+            - value_selector:
+                - '6001'
+                - input_language
+              variable: input_language
+        height: 52
+        id: '6002'
+        position:
+          x: -480
+          y: 0
+        positionAbsolute:
+          x: -480
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          cases:
+            - case_id: in_clarify
+              conditions:
+                - comparison_operator: is
+                  id: cond_0_0
+                  value: 'true'
+                  varType: boolean
+                  variable_selector:
+                    - conversation
+                    - cv_pending_clarify
+              logical_operator: and
+            - case_id: default
+              conditions:
+                - comparison_operator: not empty
+                  id: cond_default_0
+                  varType: string
+                  variable_selector:
+                    - '6002'
+                    - query_text
+              logical_operator: and
+          selected: false
+          title: 是否澄清回流态
+          type: if-else
+        height: 118
+        id: '6003'
+        position:
+          x: -220
+          y: 0
+        positionAbsolute:
+          x: -220
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          items:
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6901'
+                - value_false
+              variable_selector:
+                - conversation
+                - cv_pending_clarify
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6901'
+                - str_clarify
+              variable_selector:
+                - conversation
+                - cv_last_intent
+          selected: false
+          title: var_清除澄清标记
+          type: assigner
+          version: '2'
+        height: 88
+        id: '6004'
+        position:
+          x: -220
+          y: 180
+        positionAbsolute:
+          x: -220
+          y: 180
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          classes:
+            - id: class_basic
+              name: 基础功能或bug反馈(充电/计费/启动/支付等基础功能咨询,或任何bug/故障/报错反馈)
+            - id: class_custom
+              name: 定制功能(非基础的高级/定制功能咨询)
+            - id: class_unclear
+              name: 不清楚(无法判断)
+            - id: class_out_of_domain
+              name: 非充电桩相关问题(与充电桩/充电服务平台明显完全无关,如闲聊/天气/新闻/写代码/其他行业咨询/情感问题等)
+          instruction: '基于语义理解,先做"流程1:是否清楚功能板块",再做"流程2:是否属于基础功能",给出唯一分类。
+
+
+            **判定规则**:
+
+            1. 用户模糊/太短/无法判断涉及哪个功能板块 → class_unclear
+
+            2. 用户清楚表达了功能板块,且属于标准基础功能(计费/订单/设备/场地/用户/财务/报表等平台通用功能) → class_basic
+
+            3. 用户问的是项目级/定制/增值/对接类功能(非标准基础功能,通常需产品或商务确认) → class_custom
+
+            4. 不要用关键词匹配,要理解用户意图的语义
+
+            5. 只能选一个分类
+
+            6. 若用户问题与充电桩/充电服务平台明显完全无关(如闲聊/天气/新闻/写代码/其他行业咨询/情感问题) -> class_out_of_domain。注意:与充电/计费/设备/订单/场地等沾边的归
+            class_basic 或 class_unclear,严禁判 out-of-domain'
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          query_variable_selector:
+            - '6002'
+            - query_text
+          selected: false
+          title: L1 板块路由 (流程1+流程2)
+          type: question-classifier
+          memory: &id001
+            window:
+              enabled: true
+              size: 10
+        height: 304
+        id: '6101'
+        position:
+          x: 40
+          y: 0
+        positionAbsolute:
+          x: 40
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          items:
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6901'
+                - value_true
+              variable_selector:
+                - conversation
+                - cv_pending_clarify
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6901'
+                - str_clarify
+              variable_selector:
+                - conversation
+                - cv_last_intent
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6901'
+                - str_empty
+              variable_selector:
+                - conversation
+                - cv_matched_module
+          selected: false
+          title: var_置澄清态
+          type: assigner
+          version: '2'
+        height: 88
+        id: '6104'
+        position:
+          x: 320
+          y: -380
+        positionAbsolute:
+          x: 320
+          y: -380
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: l1-unclear-sys
+              role: system
+              text: '你是充电桩智能客服。用户输入模糊或无法判断功能板块,需要礼貌追问以确认功能板块(对应架构"流程1-N:再问对话提问")。
+
+
+                **规则**:
+
+                1. 严格只输出追问文本
+
+                2. 引导用户说明:涉及哪个功能板块(如计费/订单/设备/场地/用户/财务)以及具体问题
+
+                3. 简洁,不超过80字
+
+
+                用户问: {{#6002.query_text#}}
+
+                板块判定: {{#6101.class_name#}}
+
+
+                【多语言自动适配】
+
+                - 自动检测用户输入的自然语言, 全程使用对应语言输出全部客户侧话术(检测语言:{{#6002.language#}}, zh/en/vi/th/ne)。
+
+                - 使用对应语言的字符集编码, 保障泰语(th)、尼泊尔语(ne)等复杂脚本正常渲染、无乱码, 匹配用户端字体显示习惯。
+
+                - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
+
+                - 结构化业务字段保持中文 key, value 适配用户语言。'
+            - id: l1-unclear-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: 流程1-N 再问对话提问
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6105'
+        position:
+          x: 600
+          y: -380
+        positionAbsolute:
+          x: 600
+          y: -380
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          items:
+            - input_type: constant
+              operation: over-write
+              value: 'custom'
+              variable_selector:
+                - conversation
+                - cv_last_intent
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6101'
+                - class_name
+              variable_selector:
+                - conversation
+                - cv_matched_module
+          selected: false
+          title: var_记录定制功能
+          type: assigner
+          version: '2'
+        height: 88
+        id: '6106'
+        position:
+          x: 320
+          y: -180
+        positionAbsolute:
+          x: 320
+          y: -180
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: l1-custom-sys
+              role: system
+              text: '你是充电桩智能客服。用户询问的是项目级/定制/增值功能(非标准基础功能,对应架构"流程2-N")。
+
+
+                **规则**:
+
+                1. 严格只输出最终答案文本
+
+                2. 简要介绍该功能的定位(基于已知信息,不编造)
+
+                3. 提示:该功能需与产品和商务进一步沟通确认
+
+                4. 提示:如该功能在本项目已开通,请二次确认项目名称
+
+                5. 简洁,150字以内
+
+
+                用户问: {{#6002.query_text#}}
+
+                板块判定: {{#6101.class_name#}}
+
+
+                【多语言自动适配】
+
+                - 自动检测用户输入的自然语言, 全程使用对应语言输出全部客户侧话术(检测语言:{{#6002.language#}}, zh/en/vi/th/ne)。
+
+                - 使用对应语言的字符集编码, 保障泰语(th)、尼泊尔语(ne)等复杂脚本正常渲染、无乱码, 匹配用户端字体显示习惯。
+
+                - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
+
+                - 结构化业务字段保持中文 key, value 适配用户语言。'
+            - id: l1-custom-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: 流程2-N 非基础功能(转产品/商务)
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6107'
+        position:
+          x: 600
+          y: -180
+        positionAbsolute:
+          x: 600
+          y: -180
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          items:
+            - input_type: variable
+              operation: over-write
+              value:
+                - '6101'
+                - class_name
+              variable_selector:
+                - conversation
+                - cv_matched_module
+            - input_type: constant
+              operation: over-write
+              value: 'faq'
+              variable_selector:
+                - conversation
+                - cv_last_intent
+          selected: false
+          title: var_记录基础模块
+          type: assigner
+          version: '2'
+        height: 88
+        id: '6108'
+        position:
+          x: 320
+          y: 60
+        positionAbsolute:
+          x: 320
+          y: 60
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          dataset_ids:
+            - 56ce2834-9ff5-4dd4-b1ec-b91cb9bb42de
+          multiple_retrieval_config:
+            reranking_enable: true
+            reranking_mode: reranking_model
+            reranking_model:
+              model: qwen3-rerank
+              provider: langgenius/tongyi/tongyi
+            score_threshold: 0.55
+            top_k: 3
+          query_attachment:
+            enabled: false
+            query_attachment_selector: []
+          query_variable_selector:
+            - '6002'
+            - query_text
+          retrieval_mode: multiple
+          selected: false
+          title: KR 常见问题 (FAQ快路径)
+          type: knowledge-retrieval
+        height: 118
+        id: '6102'
+        position:
+          x: 600
+          y: 60
+        positionAbsolute:
+          x: 600
+          y: 60
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: true
+            variable_selector:
+              - '6102'
+              - result
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: faig-check-sys
+              role: system
+              text: '你是知识检索相关性判定助手。判断知识库召回的片段是否与用户问题真正相关,仅在能直接回答或强关联时返回 true。
+
+                **严格判断标准**: 1. 召回片段的内容必须能直接回答用户的具体问题(不是仅含相同关键词) 2. 用户问 A,召回片段答 B(即便主题相近也不算相关)
+                3. 召回片段数量为 0,直接 false 4. 多条片段都不相关也是 false
+
+                **输出格式**: 严格只输出一行 JSON,无任何额外文字/markdown: {"relevant": true, "reason":
+                "判定理由 20 字以内"}
+
+                示例 1(相关): {"relevant": true, "reason": "片段直接回答了用户问题"} 示例 2(不相关): {"relevant":
+                false, "reason": "片段是同类主题但不回答此问题"}'
+            - id: faig-check-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: FAQ相关性判定(LLM)
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: false
+        height: 88
+        id: '6103-llm'
+        position:
+          x: 760
+          y: 60
+        positionAbsolute:
+          x: 760
+          y: 60
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          code: "def main(llm_text: str) -> dict:\n    import json, re\n    text =
+            llm_text or \"\"\n    m = re.search(r\"\\{[^{}]*\\}\", text)\n    if not
+            m:\n        return {\"relevant\": False}\n    try:\n        obj = json.loads(m.group(0))\n\
+            \        rel = bool(obj.get(\"relevant\", False))\n        return {\"\
+            relevant\": rel}\n    except Exception:\n        return {\"relevant\"\
+            : False}\n"
+          code_language: python3
+          outputs:
+            relevant:
+              children:
+              type: boolean
+          selected: false
+          title: FAQ相关性判定解析
+          type: code
+          variables:
+            - variable: llm_text
+              value_selector:
+                - '6103-llm'
+                - text
+        height: 88
+        id: '6103-parse'
+        position:
+          x: 880
+          y: 60
+        positionAbsolute:
+          x: 880
+          y: 60
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          cases:
+            - case_id: relevant
+              conditions:
+                - comparison_operator: is
+                  id: cond_relevant_0
+                  value: true
+                  varType: boolean
+                  variable_selector:
+                    - '6103-parse'
+                    - relevant
+              logical_operator: and
+            - case_id: default
+              conditions:
+                - comparison_operator: is
+                  id: cond_default_0
+                  value: false
+                  varType: boolean
+                  variable_selector:
+                    - '6103-parse'
+                    - relevant
+              logical_operator: and
+          selected: false
+          title: FAQ相关则命中
+          type: if-else
+        height: 118
+        id: '6103-if'
+        position:
+          x: 1000
+          y: 60
+        positionAbsolute:
+          x: 1000
+          y: 60
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          items:
+            - input_type: constant
+              operation: over-write
+              value: 'faq'
+              variable_selector:
+                - conversation
+                - cv_last_intent
+          selected: false
+          title: var_记录FAQ命中
+          type: assigner
+          version: '2'
+        height: 88
+        id: '6110'
+        position:
+          x: 880
+          y: 220
+        positionAbsolute:
+          x: 880
+          y: 220
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: true
+            variable_selector:
+              - '6102'
+              - result
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: faq-sys
+              role: system
+              text: '你是充电桩智能客服,基于下方常见问题知识库回答(对应架构"FAQ命中:输出问题答案,并询问是否有其他问题")。
+
+
+                **规则**:
+
+                1. 严格只输出最终答案文本
+
+                2. 必须基于知识库检索结果,严禁编造
+
+                3. **只有检索结果完全为空(0条),或检索结果与用户问题不相关**,才说:"该问题暂未收录,建议联系平台客服"
+
+                4. 如果检索到相关结果(即使问题不完全匹配),要整合已有内容给用户排查指引
+
+                5. 回答后追问:"请问还有其他问题吗?"
+
+                6. 简洁,150字以内
+
+
+                用户问: {{#6002.query_text#}}
+
+                常见问题检索结果:
+
+                {{#context#}}
+
+
+                【多语言自动适配】
+
+                - 自动检测用户输入的自然语言, 全程使用对应语言输出全部客户侧话术(检测语言:{{#6002.language#}}, zh/en/vi/th/ne)。
+
+                - 使用对应语言的字符集编码, 保障泰语(th)、尼泊尔语(ne)等复杂脚本正常渲染、无乱码, 匹配用户端字体显示习惯。
+
+                - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
+
+                - 结构化业务字段保持中文 key, value 适配用户语言。'
+            - id: faq-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: FAQ 命中答案
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6111'
+        position:
+          x: 1160
+          y: 220
+        positionAbsolute:
+          x: 1160
+          y: 220
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          classes:
+            - id: class_a
+              name: 功能位置咨询(问某功能在哪/怎么找到/入口/菜单位置)
+            - id: class_b
+              name: 业务规则咨询(问计费规则/收费标准/业务逻辑/为什么这样设计)
+            - id: class_c
+              name: 流程操作指引(问怎么操作/如何设置/步骤,功能可用只是不会用)
+            - id: class_d
+              name: Bug反馈或功能故障(功能无法使用/操作失败/报错/异常/没反应/达不到预期,要求修复或询问原因)
+          instruction: "你是充电桩 SaaS 平台的意图分类器。在已确认的基础功能板块内,判断用户问题属于哪条意图路径。\n\n【分类定义】\n\
+            - class_a 功能位置:用户想知道某功能在哪、怎么找到、入口在哪、菜单位置。\n- class_b 业务规则:用户问计费规则、收费标准、业务逻辑、为什么这样设计等规则性疑问。\n\
+            - class_c 流程操作:用户想知道怎么操作/如何设置/操作步骤(当前功能可用,只是不会用)。\n- class_d Bug反馈/功能故障:用户描述某功能无法使用、操作失败、报错、异常、没反应、达不到预期,或询问\"\
+            为什么无法XX/怎么回事\"且核心是功能失效。\n\n【判定优先级(逐条自上而下匹配,命中即定,不再往下)——bug失效判定最优先】\n1.
+            【bug失效·最高优先】出现\"无法/不能/用不了/不工作/失败/报错/异常/没反应/卡住/XX不了/修改不了/添加不了/提交不了/不生效/达不到预期\"\
+            等功能失效表述,或带截图反馈问题 → class_d\n   关键:即使句中带\"怎么回事/为什么/是什么原因\"等询问口吻,只要核心是某功能做不到/坏了
+            → 仍归 class_d\n2. 【功能位置】用户问\"在哪/怎么找/怎么进入/入口在哪/菜单位置\" → class_a\n3. 【流程操作】用户问\"\
+            怎么操作/如何设置/步骤是什么/教程\"(功能可用,想学怎么用) → class_c\n4. 【业务规则】用户问\"规则/标准/为什么这么收费/计费逻辑/业务规则\"\
+            \ → class_b\n\n【关键边界消歧】\n- \"无法修改/修改不了/修改失败\" = 功能失效 → class_d(不是 c)\n\
+            - \"怎么修改/如何修改\" = 想学操作步骤 → class_c\n- \"修改入口在哪\" = 找功能位置 → class_a\n-
+            \"为什么无法修改/无法修改是怎么回事\" = 功能失效+询问原因 → class_d(不是 b)\n- \"计费规则是什么\" = 规则咨询
+            → class_b\n- \"计费怎么设置\" = 操作指引 → class_c\n- \"计费设置后不生效/计费算错了\" = 功能失效
+            → class_d\n\n【示例】\n- \"运营商关联的C端用户无法修改是怎么回事\" → class_d\n- \"用户注册报错,打包时未添加fingerprint模块\"\
+            \ → class_d\n- \"怎么配置计费模板\" → class_c\n- \"计费模板入口在哪\" → class_a\n- \"\
+            夜间服务费怎么收的\" → class_b\n- \"我截图这个报错帮我看看\" → class_d\n\n只输出一个分类 id。"
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          query_variable_selector:
+            - '6002'
+            - query_text
+          selected: false
+          title: L3 意图识别 (4路分发)
+          type: question-classifier
+          memory: *id001
+        height: 304
+        id: '6201'
+        position:
+          x: 1160
+          y: 440
+        positionAbsolute:
+          x: 1160
+          y: 440
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: a2-sys
+              role: system
+              text: '你是充电桩功能导航助手。根据用户问题和可能的功能模块,生成用于菜单路径检索的短词条(对应架构"路径A-流程1:生成可能的存在性短词条")。
+
+
+                **规则**:
+
+                1. 输出3-6个短词条,用逗号分隔,只输出词条本身
+
+                2. 词条应为功能/菜单名称的同义词和可能叫法(如"计费模板""节日计费""场地设置")
+
+                3. 不要输出解释、编号或引号
+
+
+                用户问: {{#6002.query_text#}}
+
+
+                【检索词条语言】
+
+                即使用户使用其他语言输入, 检索词条须输出中文(匹配中文知识库), 3-6个逗号分隔。'
+            - id: a2-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: A2 生成短词条
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6210'
+        position:
+          x: 1440
+          y: 260
+        positionAbsolute:
+          x: 1440
+          y: 260
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          dataset_ids:
+            - c1a4258e-c485-42c8-8423-aa7f1436f7b2
+          multiple_retrieval_config:
+            reranking_enable: true
+            reranking_mode: reranking_model
+            reranking_model:
+              model: qwen3-rerank
+              provider: langgenius/tongyi/tongyi
+            score_threshold: 0.3
+            top_k: 5
+          query_attachment:
+            enabled: false
+            query_attachment_selector: []
+          query_variable_selector:
+            - '6210'
+            - text
+          retrieval_mode: multiple
+          selected: false
+          title: A3 查询菜单路径
+          type: knowledge-retrieval
+        height: 118
+        id: '6211'
+        position:
+          x: 1700
+          y: 260
+        positionAbsolute:
+          x: 1700
+          y: 260
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: true
+            variable_selector:
+              - '6211'
+              - result
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: a4-sys
+              role: system
+              text: '你是充电桩功能导航助手,根据菜单路径检索结果,告诉用户功能设置在哪里操作(对应架构"路径A4:输出菜单路径,上限五个菜单以内")。
+
+
+                **规则**:
+
+                1. 严格只输出最终答案文本
+
+                2. 基于检索结果,按菜单路径输出,**最多5条**
+
+                3. 格式示例:
+
+                1. 如果你要查找计费模板在哪设置,可以在 充电桩>计费模板管理 查找
+
+                2. 如果你要查找节日计费模板,可以在 充电桩>场地设置
+
+                4. 若检索结果为空,说:"未找到该功能的菜单路径,建议联系平台客服"
+
+                5. 简洁
+
+
+                用户问: {{#6002.query_text#}}
+
+                菜单路径检索结果:
+
+                {{#context#}}
+
+
+                【多语言自动适配】
+
+                - 自动检测用户输入的自然语言, 全程使用对应语言输出全部客户侧话术(检测语言:{{#6002.language#}}, zh/en/vi/th/ne)。
+
+                - 使用对应语言的字符集编码, 保障泰语(th)、尼泊尔语(ne)等复杂脚本正常渲染、无乱码, 匹配用户端字体显示习惯。
+
+                - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
+
+                - 结构化业务字段保持中文 key, value 适配用户语言。'
+            - id: a4-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: A4 输出菜单路径(≤5)
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6212'
+        position:
+          x: 1960
+          y: 260
+        positionAbsolute:
+          x: 1960
+          y: 260
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          dataset_ids:
+            - 39659847-228a-402c-a18a-3ce9334565a4
+          multiple_retrieval_config:
+            reranking_enable: true
+            reranking_mode: reranking_model
+            reranking_model:
+              model: qwen3-rerank
+              provider: langgenius/tongyi/tongyi
+            score_threshold: 0.3
+            top_k: 3
+          query_attachment:
+            enabled: false
+            query_attachment_selector: []
+          query_variable_selector:
+            - '6002'
+            - query_text
+          retrieval_mode: multiple
+          selected: false
+          title: B2 查询功能清单
+          type: knowledge-retrieval
+        height: 174
+        id: '6220'
+        position:
+          x: 1440
+          y: 420
+        positionAbsolute:
+          x: 1440
+          y: 420
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: true
+            variable_selector:
+              - '6220'
+              - result
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: b3-sys
+              role: system
+              text: '你是充电桩智能客服,基于功能清单回答业务规则/功能内容问题(对应架构"路径B3:输出问题答案并回复是否需要产品沟通")。
+
+
+                **规则**:
+
+                1. 严格只输出最终答案文本
+
+                2. 必须基于上下文,严禁编造
+
+                3. 若上下文为空,说:"该问题暂未收录到公开知识库,建议联系平台客服获取详细指引"
+
+                4. 回答后主动询问:"是否需要进一步与产品沟通?"
+
+                5. 150字以内,引用原文
+
+
+                用户问: {{#6002.query_text#}}
+
+                功能清单检索结果:
+
+                {{#context#}}
+
+
+                【多语言自动适配】
+
+                - 自动检测用户输入的自然语言, 全程使用对应语言输出全部客户侧话术(检测语言:{{#6002.language#}}, zh/en/vi/th/ne)。
+
+                - 使用对应语言的字符集编码, 保障泰语(th)、尼泊尔语(ne)等复杂脚本正常渲染、无乱码, 匹配用户端字体显示习惯。
+
+                - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
+
+                - 结构化业务字段保持中文 key, value 适配用户语言。'
+            - id: b3-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: B3 业务答案(转产品沟通)
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6221'
+        position:
+          x: 1700
+          y: 420
+        positionAbsolute:
+          x: 1700
+          y: 420
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          dataset_ids:
+            - 39659847-228a-402c-a18a-3ce9334565a4
+          multiple_retrieval_config:
+            reranking_enable: true
+            reranking_mode: reranking_model
+            reranking_model:
+              model: qwen3-rerank
+              provider: langgenius/tongyi/tongyi
+            score_threshold: 0.3
+            top_k: 3
+          query_attachment:
+            enabled: false
+            query_attachment_selector: []
+          query_variable_selector:
+            - '6002'
+            - query_text
+          retrieval_mode: multiple
+          selected: false
+          title: C2 查询流程操作
+          type: knowledge-retrieval
+        height: 118
+        id: '6230'
+        position:
+          x: 1440
+          y: 580
+        positionAbsolute:
+          x: 1440
+          y: 580
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: true
+            variable_selector:
+              - '6230'
+              - result
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: c3-sys
+              role: system
+              text: '你是充电桩智能客服,诊断用户操作被拦截/卡住的流程问题(对应架构"路径C2:查询当前流程及前面流程的操作;C3:输出可能需要补充的操作流程,并回复是否需要产品沟通")。
+
+
+                **规则**:
+
+                1. 严格只输出最终答案文本
+
+                2. 基于上下文,指出当前流程及前置流程可能缺失/未完成的操作步骤
+
+                3. 若上下文为空,说:"该流程问题暂未收录,建议提供具体操作页面和错误提示"
+
+                4. 回答后主动询问:"是否需要进一步与产品沟通?"
+
+                5. 简洁
+
+
+                用户问: {{#6002.query_text#}}
+
+                流程库检索结果:
+
+                {{#context#}}
+
+
+                【多语言自动适配】
+
+                - 自动检测用户输入的自然语言, 全程使用对应语言输出全部客户侧话术(检测语言:{{#6002.language#}}, zh/en/vi/th/ne)。
+
+                - 使用对应语言的字符集编码, 保障泰语(th)、尼泊尔语(ne)等复杂脚本正常渲染、无乱码, 匹配用户端字体显示习惯。
+
+                - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
+
+                - 结构化业务字段保持中文 key, value 适配用户语言。'
+            - id: c3-user
+              role: user
+              text: '{{#6002.query_text#}}'
+          reasoning_format: separated
+          selected: false
+          title: C3 流程卡点诊断(转产品沟通)
+          type: llm
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 88
+        id: '6231'
+        position:
+          x: 1700
+          y: 580
+        positionAbsolute:
+          x: 1700
+          y: 580
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          code: "def main() -> dict:\n    return {\n        \"value_true\": True,\n\
+            \        \"value_false\": False,\n        \"str_clarify\": \"clarify\"\
+            ,\n        \"str_faq\": \"faq\",\n        \"str_custom\": \"custom\",\n\
+            \        \"str_d\": \"d\",\n        \"str_a\": \"a\",\n        \"str_b\"\
+            : \"b\",\n        \"str_c\": \"c\",\n        \"str_empty\": \"\",\n  \
+            \      \"str_await_confirm_new\": \"await_confirm_new\",\n        \"str_idle\"\
+            : \"IDLE\",\n        \"str_await_confirm_identity\": \"await_confirm_identity\"\
+            ,\n        \"str_await_diff_decision\": \"await_diff_decision\",\n   \
+            \     \"str_await_confirm_modify\": \"await_confirm_modify\",\n      \
+            \  \"str_await_modify_window\": \"await_modify_window\",\n        \"clarify_count_0\"\
+            : 0,\n        \"clarify_count_1\": 1\n    }\n"
+          code_language: python3
+          outputs:
+            str_a:
+              children:
+              type: string
+            str_b:
+              children:
+              type: string
+            str_c:
+              children:
+              type: string
+            str_clarify:
+              children:
+              type: string
+            str_custom:
+              children:
+              type: string
+            str_d:
+              children:
+              type: string
+            str_empty:
+              children:
+              type: string
+            str_faq:
+              children:
+              type: string
+            value_false:
+              children:
+              type: boolean
+            value_true:
+              children:
+              type: boolean
+            str_await_confirm_new:
+              children:
+              type: string
+            str_idle:
+              children:
+              type: string
+            str_await_confirm_identity:
+              children:
+              type: string
+            str_await_diff_decision:
+              children:
+              type: string
+            str_await_confirm_modify:
+              children:
+              type: string
+            str_await_modify_window:
+              children:
+              type: string
+            clarify_count_0:
+              children:
+              type: number
+            clarify_count_1:
+              children:
+              type: number
+          selected: false
+          title: code_常量
+          type: code
+          variables: []
+        height: 52
+        id: '6901'
+        position:
+          x: -760
+          y: 280
+        positionAbsolute:
+          x: -760
+          y: 280
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          advanced_settings:
+            group_enabled: false
+            groups: []
+          output_type: string
+          outputs:
+            output:
+              children:
+              type: string
+          selected: false
+          title: 汇聚最终答案
+          type: variable-aggregator
+          variables:
+            -   - '6105'
+                - text
+            -   - '6107'
+                - text
+            -   - '6111'
+                - text
+            -   - '6212'
+                - text
+            -   - '6221'
+                - text
+            -   - '6231'
+                - text
+            -   - 6201-switch-bug
+                - answer_text
+            -   - 6109-out
+                - answer_text
+        height: 200
+        id: '6098'
+        position:
+          x: 2240
+          y: 280
+        positionAbsolute:
+          x: 2240
+          y: 280
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          answer: '{{#6098.output#}}'
+          selected: false
+          title: 输出 AI 回答
+          type: answer
+          variables:
+            - value_selector:
+                - '6098'
+                - output
+              variable: final_text
+        height: 89
+        id: '6099'
+        position:
+          x: 2480
+          y: 280
+        positionAbsolute:
+          x: 2480
+          y: 280
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          code: "def main() -> dict:\n    return {\"answer_text\": \"<!--SYS:SWITCH_TO_BUG-->\"\
+            }\n"
+          code_language: python3
+          outputs:
+            answer_text:
+              children:
+              type: string
+          selected: false
+          title: 切换bug模块(发标记)
+          type: code
+          variables: []
+        height: 88
+        id: 6201-switch-bug
+        position:
+          x: 480
+          y: 520
+        positionAbsolute:
+          x: 480
+          y: 520
+        selected: false
+        type: custom
+        width: 242
+      - id: 6109-out
+        type: custom
+        position:
+          x: 40
+          y: 220
+        positionAbsolute:
+          x: 40
+          y: 220
+        width: 242
+        height: 88
+        selected: false
+        data:
+          type: code
+          title: L1 超出范围话术
+          code_language: python3
+          code: "def main(query_text: str) -> dict:\n    q = (query_text or \"\").strip()\n\
+            \    snippet = q[:30] if q else \"该问题\"\n    return {\"answer_text\":
+            \"您好,我是充电桩智能客服,仅能为您解答充电桩相关问题(如充电操作、计费收费、支付订单、设备故障、场地管理等)。您提到的\\\"\" +
+            snippet + \"\\\"超出我的服务范围,暂时无法为您解答哦。请问有充电桩方面的问题需要咨询吗?\"}"
+          outputs:
+            answer_text:
+              children:
+              type: string
+          variables:
+            - variable: query_text
+              value_selector:
+                - '6002'
+                - query_text
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.4
+  rag_pipeline_variables: []

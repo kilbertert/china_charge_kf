@@ -1,0 +1,431 @@
+# 02 成因量表库 — 扩展：评分规则 + code_key 对齐
+
+## 问卷定义（含 code_key 别名）
+
+每个 question 的 `code_key` 字段对齐 Python 代码中 `_score_semantic_answers()` 使用的变量名。
+问卷 YAML 负责定义"问什么"，本文件负责定义"答案怎么映射到风险标签"。
+
+### 通用筛查题
+
+```yaml
+general_screening:
+  - id: q_age
+    code_key: age_range
+    text: 您的年龄段是?
+    type: single_select
+    options:
+      - key: u40
+        label: 40岁以下
+      - key: 40_50
+        label: 40-50岁
+      - key: 50_60
+        label: 50-60岁
+      - key: o60
+        label: 60岁以上
+
+  - id: q_gender
+    code_key: sex
+    text: 您的性别是?
+    type: single_select
+    options:
+      - key: female
+        label: 女
+      - key: male
+        label: 男
+```
+
+### 骨密度专项题
+
+```yaml
+bone_density_specific:
+  - id: q_supplement_frequency
+    code_key: supplement_frequency
+    text: 您日常补充钙或维生素D的频率是?
+    type: single_select
+    options:
+      - key: daily
+        label: 几乎每天补充
+      - key: sometimes
+        label: 偶尔补充
+      - key: rarely
+        label: 几乎不补充
+      - key: never
+        label: 从不补充
+
+  - id: q_outdoor_exercise_duration
+    code_key: outdoor_exercise_duration
+    text: 您每周累计户外运动/日晒的时长大概是?
+    type: single_select
+    options:
+      - key: less1
+        label: 不足1小时
+      - key: "1to3"
+        label: 1-3小时
+      - key: more3
+        label: 3小时以上
+      - key: none
+        label: 几乎不出门
+
+  - id: q_medication_history
+    code_key: medication_history
+    text: 您是否有长期服用影响骨代谢的相关药物史?
+    type: single_select
+    options:
+      - key: yes
+        label: 是
+      - key: no
+        label: 否
+      - key: unknown
+        label: 不清楚
+
+  - id: q_menopause
+    code_key: menopause
+    text: 您是否已绝经?
+    type: yes_no
+    skip_when:
+      - sex == "male"
+      - age_range in ["u40"]
+      - t_value_all_normal  # 所有 T 值 > -1.0 时跳过
+
+  - id: q_fragility_fracture
+    code_key: fragility_fracture
+    text: 您或您的直系亲属是否有过轻微摔倒后骨折?
+    type: yes_no
+
+  - id: q_family_osteoporosis
+    code_key: family_osteoporosis
+    text: 您的直系亲属中是否有人确诊过骨质疏松?
+    type: yes_no
+
+  - id: q_sun_exposure
+    code_key: sun_exposure
+    text: 您平均每天日晒时间?
+    type: single_select
+    options:
+      - key: lt_15min
+        label: 少于15分钟
+      - key: "15_30min"
+        label: 15-30分钟
+      - key: gt_30min
+        label: 多于30分钟
+
+  - id: q_calcium_intake
+    code_key: calcium_intake
+    text: 您每天喝牛奶或吃奶制品的量?
+    type: single_select
+    options:
+      - key: none
+        label: 基本不喝
+      - key: low
+        label: 偶尔少量
+      - key: medium
+        label: 每天约200ml
+      - key: high
+        label: 每天500ml以上
+
+  - id: q_strength_training
+    code_key: strength_training
+    text: 您是否进行规律的力量训练或抗阻运动?
+    type: yes_no
+
+  - id: q_steroid_use
+    code_key: steroid_use
+    text: 您是否长期使用糖皮质激素(如泼尼松)?
+    type: yes_no
+
+  - id: q_chronic_disease
+    code_key: chronic_disease
+    text: 您是否确诊过以下慢性病?
+    type: multi_select
+    options:
+      - key: diabetes
+        label: 糖尿病
+      - key: thyroid
+        label: 甲状腺疾病
+      - key: kidney
+        label: 慢性肾病
+      - key: liver
+        label: 慢性肝病
+      - key: none
+        label: 都没有
+
+  - id: q_spine_symptom
+    code_key: spine_symptom
+    text: 您是否有腰背痛、身高变矮或驼背加重的表现?
+    type: yes_no
+
+  - id: q_vitd_tested
+    code_key: vitd_tested
+    text: 您是否检查过 25-OH 维生素D? 结果如何?
+    type: single_select
+    options:
+      - key: normal
+        label: 正常/充足
+      - key: low
+        label: 偏低/缺乏
+      - key: not_tested
+        label: 未检查
+
+  - id: q_low_bmi
+    code_key: low_bmi
+    text: 您是否体重偏低(BMI < 18.5)或近期明显减重?
+    type: yes_no
+```
+
+### 通用危险信号筛查题
+
+```yaml
+danger_signals:
+  - id: q_sudden_severe
+    code_key: sudden_severe
+    text: 是否突然发生且疼得很厉害?
+    type: yes_no
+
+  - id: q_cannot_stand
+    code_key: cannot_stand
+    text: 现在是否影响站立、走路或负重?
+    type: yes_no
+
+  - id: q_chest_discomfort
+    code_key: chest_discomfort
+    text: 是否伴有胸闷、心慌或呼吸困难?
+    type: yes_no
+
+  - id: q_fever_red_swollen
+    code_key: fever_red_swollen
+    text: 是否伴有发热、寒战或局部红肿热痛?
+    type: yes_no
+
+  - id: q_weakness_numbness
+    code_key: weakness_numbness
+    text: 是否伴有麻木、无力或放射感?
+    type: yes_no
+
+  - id: q_trauma
+    code_key: trauma
+    text: 是否因外伤导致的疼痛或活动受限?
+    type: yes_no
+```
+
+---
+
+## 评分规则：固定答案 → 风险标签 + 权重
+
+每个 question 的特定 answer 映射到 tag 和 weight。
+
+```yaml
+fixed_answer_scoring:
+  menopause:
+    yes:
+      - tag: menopause_related
+        weight: 3
+        evidence: "已绝经"
+
+  fragility_fracture:
+    yes:
+      - tag: fracture_high_risk
+        weight: 3
+        evidence: "有轻微摔倒后骨折史"
+
+  family_osteoporosis:
+    yes:
+      - tag: fracture_high_risk
+        weight: 2
+        evidence: "有骨质疏松家族史"
+
+  sun_exposure:
+    lt_15min:
+      - tag: vitamin_d_deficient
+        weight: 2
+        evidence: "日晒较少"
+    "15_30min":
+      - tag: vitamin_d_deficient
+        weight: 1
+        evidence: "日晒一般"
+
+  calcium_intake:
+    none:
+      - tag: calcium_protein_deficient
+        weight: 2
+        evidence: "基本不喝奶制品"
+    low:
+      - tag: calcium_protein_deficient
+        weight: 1
+        evidence: "奶制品摄入偏低"
+
+  strength_training:
+    no:
+      - tag: exercise_deficient
+        weight: 2
+        evidence: "缺乏负重或力量训练"
+
+  steroid_use:
+    yes:
+      - tag: medication_related
+        weight: 3
+        evidence: "长期服用激素类药物"
+
+  smoke_alcohol:          # 注：问卷中未直接设题，保留用于扩展
+    yes:
+      - tag: medication_related
+        weight: 1
+        evidence: "经常饮酒或吸烟"
+
+  chronic_disease:
+    yes:
+      - tag: medication_related
+        weight: 2
+        evidence: "存在影响骨代谢的慢病"
+
+  spine_symptom:
+    yes:
+      - tag: fracture_high_risk
+        weight: 3
+        evidence: "有腰背痛/身高变矮/驼背加重表现"
+
+  vitd_tested:
+    low:
+      - tag: vitamin_d_deficient
+        weight: 2
+        evidence: "25-OH 维生素D检查偏低"
+
+  low_bmi:
+    yes:
+      - tag: calcium_protein_deficient
+        weight: 1
+        evidence: "体重偏低或近期明显减重"
+```
+
+---
+
+## 评分规则：语义答案 → 风险标签 + 权重
+
+基于通用筛查题（age_range, sex, supplement_frequency 等）的语义推断。
+
+```yaml
+semantic_scoring:
+  sex_female_and_age:
+    conditions:
+      - sex == "female" AND age_range in ["50_60", "o60"]
+        tag: menopause_related
+        weight: 3
+        evidence: "女性且年龄位于绝经相关高发区间"
+      - sex == "female" AND age_range == "40_50"
+        tag: menopause_related
+        weight: 1
+        evidence: "女性且接近绝经年龄段"
+
+  supplement_frequency:
+    conditions:
+      - value == "rarely"
+        tag: calcium_protein_deficient
+        weight: 2
+        evidence: "日常很少补充钙或维生素D"
+      - value == "rarely"
+        tag: vitamin_d_deficient
+        weight: 2
+        evidence: "日常很少补充钙或维生素D"
+      - value == "sometimes"
+        tag: calcium_protein_deficient
+        weight: 1
+        evidence: "钙和维生素D补充频率偏低"
+      - value == "sometimes"
+        tag: vitamin_d_deficient
+        weight: 1
+        evidence: "钙和维生素D补充频率偏低"
+
+  outdoor_exercise_duration:
+    conditions:
+      - value == "less1"
+        tag: exercise_deficient
+        weight: 2
+        evidence: "户外运动时长不足"
+        also_add:
+          - tag: vitamin_d_deficient
+            weight: 1
+            evidence: "户外运动少，日晒不足"
+      - value == "1to3"
+        tag: exercise_deficient
+        weight: 1
+        evidence: "户外运动一般"
+
+  medication_history:
+    conditions:
+      - value == "yes"
+        tag: medication_related
+        weight: 3
+        evidence: "存在长期影响骨代谢的用药史"
+
+  age_only:
+    conditions:
+      - value == "o60"
+        tag: fracture_high_risk
+        weight: 1
+        evidence: "年龄较大，骨折风险相对更高"
+```
+
+---
+
+## 标签优先级与风险等级映射
+
+```yaml
+tag_priority:        # 从高到低排序，同分时按此顺序取最高优先级
+  - fracture_high_risk       # weight 高 + 临床后果严重
+  - medication_related       # 药物影响需优先处理
+  - menopause_related        # 激素因素
+  - vitamin_d_deficient      # 可干预的营养因素
+  - calcium_protein_deficient
+  - exercise_deficient
+
+tag_risk_level:
+  fracture_high_risk:       high
+  medication_related:       high
+  menopause_related:        medium
+  vitamin_d_deficient:      medium
+  calcium_protein_deficient: low
+  exercise_deficient:       low
+
+# 置信度计算参数
+confidence:
+  base: 0.72
+  per_weight_point: 0.05
+  max: 0.95
+  insufficient_threshold: 0.7  # confidence < 此值 → insufficient_data
+```
+
+---
+
+## 映射到推荐方案的 tag → solution_id
+
+```yaml
+tag_solution_mapping:
+  menopause_related:
+    solution_id: menopause_related_v1
+    department: 内分泌科 / 骨质疏松门诊
+    risk_level: medium
+
+  vitamin_d_deficient:
+    solution_id: vitamin_d_deficient_v1
+    department: 内分泌科
+    risk_level: medium
+
+  calcium_protein_deficient:
+    solution_id: calcium_protein_deficient_v1
+    department: 营养科 / 骨质疏松门诊
+    risk_level: low
+
+  exercise_deficient:
+    solution_id: exercise_deficient_v1
+    department: 康复科 / 骨质疏松门诊
+    risk_level: low
+
+  medication_related:
+    solution_id: medication_related_v1
+    department: 内分泌科 / 相关慢病专科
+    risk_level: high
+
+  fracture_high_risk:
+    solution_id: fracture_high_risk_v1
+    department: 骨科 / 骨质疏松门诊
+    risk_level: high
+```

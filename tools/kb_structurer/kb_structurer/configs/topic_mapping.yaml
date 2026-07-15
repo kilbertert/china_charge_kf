@@ -1,0 +1,26 @@
+# FAQ 主题映射 — 把 Excel 21 节点聚合到 4-6 个主题
+
+角色管理:
+  keywords: [Role Management, 角色管理]
+  description: 后台角色与权限相关问题
+
+计费模板:
+  keywords: [Billing Template, 计费]
+  description: 计费模板创建、生效、修改规则
+
+充电订单:
+  keywords: [Charging Order, 订单]
+  description: 充电订单状态、中断、退款
+
+设备故障:
+  keywords: [Equipment Failure, 设备故障]
+  description: 设备故障报修、故障码
+
+# 占位主题(可按需扩展)
+退款流程:
+  keywords: [Refund, 退款]
+  description: 退款规则、到账时间
+
+分润结算:
+  keywords: [Settlement, 分润]
+  description: 运营商分润与结算规则

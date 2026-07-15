@@ -1,0 +1,80 @@
+# 03 标准建议库 — 风险等级对应的生活方式/营养/就医建议
+骨质疏松风险(high):
+  oneLineConclusion: 您的指标提示存在骨质疏松风险,建议尽早就医评估
+  lifestyle:
+    - icon: ⚠
+      title: 重点防跌倒
+      content: 家中浴室、走廊加装扶手,避免湿滑地面。
+    - icon: 🏃
+      title: 保持适度负重运动
+      content: 快走、慢跑、太极等,每周累计150分钟以上。
+    - icon: ☀
+      title: 保证充足日晒
+      content: 每天日晒20-30分钟,促进维生素D合成。
+  nutrition:
+    - icon: 🥛
+      title: 钙摄入 1000-1200mg/天
+      content: 牛奶、酸奶、奶酪、豆腐、深绿色蔬菜。
+    - icon: ☀
+      title: 维生素D 800-1000 IU/天
+      content: 多晒太阳;或遵医嘱服用维生素D补充剂。
+  next_step: 建议至骨科或骨质疏松专科门诊就诊
+  medical_referral_priority: high
+
+骨量减少风险(medium):
+  oneLineConclusion: 您的骨量有下降趋势,建议关注并定期复查
+  lifestyle:
+    - icon: 🏃
+      title: 坚持规律运动
+      content: 每周累计150分钟中等强度运动。
+    - icon: 📊
+      title: 定期监测骨密度变化
+      content: 每1-2年复查骨密度,关注变化趋势。
+  nutrition:
+    - icon: ⚖
+      title: 维持均衡饮食
+      content: 蛋白质、钙、维生素D均衡摄入。
+  next_step: 建议每1-2年复查骨密度
+  medical_referral_priority: medium
+
+骨密度正常(low):
+  oneLineConclusion: 您的骨密度整体在正常范围,请继续保持健康生活方式
+  lifestyle:
+    - icon: 🏃
+      title: 保持健康生活方式
+      content: 规律运动、均衡饮食、充足睡眠。
+  nutrition:
+    - icon: 🥗
+      title: 均衡饮食
+      content: 多样化饮食,保证蛋白质、钙、维生素D摄入。
+  next_step: 定期体检即可
+  medical_referral_priority: low
+
+数据不足(insufficient_data):
+  userMessage: 您上传的报告信息还不足以做出可靠判断。建议您:1) 提供清晰的骨密度或化验报告图片;2) 补充年龄性别等基本信息。
+  reasons:
+    - 未上传清晰的体检报告
+    - 报告未包含可识别的骨密度或化验指标
+  next_step: 请重新上传报告或直接粘贴 T值等关键数据
+  required_followup:
+    - 重新上传清晰报告图片
+    - 文字描述年龄/性别
+    - 文字描述具体指标数值
+
+场景二(symptom)默认回复:
+  default_oneLineConclusion: 您的情况需要进一步评估,建议结合您的具体症状咨询专业医生
+  default_next_step: 建议到对应科室就诊评估
+  default_lifestyle:
+    - 记录症状日记(时间/部位/持续/诱因)
+    - 避免加重因素
+    - 规律作息
+  default_medical_referral_priority: medium
+
+场景三(product)默认回复:
+  default_oneLineConclusion: 关于您咨询的产品,本助手仅能基于客观信息协助判断,无法替代专业意见
+  default_next_step: 选购前建议咨询专业医生或营养师
+  default_lifestyle:
+    - 阅读产品成分表
+    - 注意适用人群与禁忌
+    - 不要替代药物
+  default_medical_referral_priority: low

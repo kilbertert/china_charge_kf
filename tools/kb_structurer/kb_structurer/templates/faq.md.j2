@@ -1,0 +1,19 @@
+# {{ topic }}
+
+{% if description %}> {{ description }}
+{% endif %}
+## 常见问题
+
+{% for qa in qa_list %}
+### Q{{ loop.index }}{% if qa.q_en %} ({{ qa.q_en }}){% endif %}
+
+{% if qa.q_en %}**中文:** {{ qa.q }}{% else %}**问:** {{ qa.q }}{% endif %}
+
+**{% if qa.q_en %}答案:{% else %}答:{% endif %}** {{ qa.a }}{% if qa.a_en %}
+
+**EN Answer:** {{ qa.a_en }}{% endif %}
+
+{% endfor %}
+## 检索关键词
+
+{{ keywords | join(", ") }}

@@ -1,0 +1,28 @@
+# {{ name }}
+
+{% if summary %}> {{ summary }}
+{% endif %}
+{% if prerequisites %}
+## 前置条件
+
+{% for prereq in prerequisites %}
+- {{ prereq }}
+{% endfor %}
+{% endif %}
+## 步骤
+
+{% for step in steps %}
+### {{ loop.index }}. {{ step.title }}
+
+{{ step.content }}
+{% endfor %}
+{% if common_issues %}
+## 常见问题/卡点
+
+{% for issue in common_issues %}
+- **{{ issue.title }}**: {{ issue.solution }}
+{% endfor %}
+{% endif %}
+## 检索关键词
+
+{{ keywords | join(", ") }}

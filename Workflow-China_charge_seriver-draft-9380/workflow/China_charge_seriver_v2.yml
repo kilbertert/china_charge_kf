@@ -1,0 +1,716 @@
+app:
+  description: 充电桩客服 v12 - 路径A/B 改用 feature KB,涵盖 C端App+B端运营商+完整操作流程
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: China_charge_seriver_v12
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - JPG
+      - PNG
+      - JPEG
+      - WEBP
+      - PDF
+      allowed_file_types:
+      - image
+      - document
+      allowed_file_upload_methods:
+      - remote_url
+      - local_file
+      enabled: true
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 50
+        image_file_size_limit: 50
+        video_file_size_limit: 50
+        workflow_file_upload_limit: 10
+      image_file_batch_limit: 1
+      single_chunk_attachment_limit: 10
+      attachment_image_file_size_limit: 10
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    nodes:
+    - id: '5001'
+      data:
+        type: start
+        title: 接收多模态输入
+        variables:
+        - variable: input_text
+          label: 用户文本
+          type: paragraph
+          required: false
+          max_length: 4000
+          default: ''
+        - variable: input_language
+          label: 语言(可选)
+          type: select
+          required: false
+          options:
+          - zh
+          - en
+          - vi
+          - ''
+          default: ''
+        - variable: input_img_id
+          label: 图片(可选)
+          type: file-list
+          required: false
+        - variable: input_turn
+          label: 轮次
+          type: number
+          required: false
+          default: 1
+        - variable: input_session_id
+          label: 会话ID
+          type: text-input
+          required: false
+          default: ''
+        - variable: input_hint_endpoint
+          label: 端类型
+          type: select
+          required: false
+          options:
+          - user
+          - butler
+          - pc
+          - ''
+          default: ''
+        - variable: input_hint_region
+          label: 地域
+          type: select
+          required: false
+          options:
+          - cn
+          - overseas
+          - ''
+          default: ''
+      position:
+        x: -300
+        y: 0
+      positionAbsolute:
+        x: -300
+        y: 0
+      width: 244
+      height: 100
+    - id: '5002'
+      data:
+        type: code
+        title: code_自动检测语言
+        code: "\ndef main(input_text: str, input_language: str) -> dict:\n    if input_language\
+          \ and input_language.strip():\n        return {\"input_language\": input_language,\
+          \ \"detected\": False}\n    text = input_text or \"\"\n    cjk_count = sum(1\
+          \ for c in text if '\\u4e00' <= c <= '\\u9fff')\n    vi_chars = \"ăâđêôơưĂÂĐÊÔƠƯáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ\"\
+          \n    has_vi = any(c in vi_chars for c in text)\n    if has_vi: lang = \"\
+          vi\"\n    elif cjk_count > 0: lang = \"zh\"\n    else: lang = \"en\"\n \
+          \   return {\"input_language\": lang, \"detected\": True}\n"
+        code_language: python3
+        variables:
+        - variable: input_text
+          value_selector:
+          - '5001'
+          - input_text
+        - variable: input_language
+          value_selector:
+          - '5001'
+          - input_language
+        outputs:
+          input_language:
+            type: string
+            children: null
+          detected:
+            type: boolean
+            children: null
+      position:
+        x: -100
+        y: 0
+      positionAbsolute:
+        x: -100
+        y: 0
+      width: 244
+      height: 100
+    - id: '5003'
+      data:
+        type: question-classifier
+        title: 意图分类 (LLM 语义)
+        model: &id002
+          provider: langgenius/volcengine_maas/volcengine_maas
+          name: Doubao-Seed-2.0-lite
+          mode: chat
+        query_variable_selector:
+        - '5001'
+        - input_text
+        instruction: '基于语义理解,判断用户问题属于哪个分类。
+
+
+          **重要规则**:
+
+          1. 不要用关键词匹配,要理解用户意图的语义
+
+          2. 用户发了图片(说明截屏反馈),通常是想反馈 bug/问题 → path_d_bug
+
+          3. 用户问 ''怎么/如何 + 操作(添加/设置/配置/创建/启用)'' → path_b_business
+
+          4. 用户被系统阻止(''拦截/卡住/失败/报错'') → path_c_process
+
+          5. 用户问 ''在哪/怎么找/怎么进入'' → path_a_location
+
+          6. 用户报告 ''bug/错误/不工作'' → path_d_bug
+
+          7. 模糊/太短 → path_e_unclear'
+        classes:
+        - id: class_a
+          name: path_a_location
+          description: 位置查询:用户想知道某个功能在哪
+        - id: class_b
+          name: path_b_business
+          description: 业务操作:用户想知道怎么操作某个功能,或询问业务规则
+        - id: class_c
+          name: path_c_process
+          description: 流程被拦:用户的操作被系统阻止无法继续
+        - id: class_d
+          name: path_d_bug
+          description: Bug反馈:系统异常、缺陷,或用户发送了图片
+        - id: class_e
+          name: path_e_unclear
+          description: 不明确:用户输入模糊或太短,无法判断
+      position:
+        x: 100
+        y: 0
+      positionAbsolute:
+        x: 100
+        y: 0
+      width: 280
+      height: 200
+    - id: '5010'
+      data:
+        type: knowledge-retrieval
+        title: KR 项目功能库 (C端+B端)
+        dataset_ids:
+        - cec64ce0-c15f-4315-88a2-1c1c0af90d21
+        retrieval_mode: multiple
+        multiple_retrieval_config:
+          top_k: 5
+          score_threshold: 0.3
+          reranking_enable: false
+        query_variable_selector:
+        - '5001'
+        - input_text
+        query_attachment:
+          enabled: false
+      position: &id001
+        x: 420
+        y: -300
+      positionAbsolute: *id001
+      width: 244
+      height: 90
+    - id: '5011'
+      data:
+        type: llm
+        title: LLM 路径A (功能位置)
+        model: *id002
+        prompt_template:
+        - role: system
+          text: '你是充电桩智能客服,正在回答用户关于**功能/操作位置**的问题(可能涉及 C 端 App 或 B 端运营商后台)。
+
+
+            **核心规则**:
+
+            1. **严格只输出最终答案文本,不要任何<think>推理过程**
+
+            2. **必须基于上下文(项目功能库)回答,严禁编造**
+
+            3. 如果上下文为空或无关,直接说:"该功能暂未在公开文档中收录,建议联系平台客服"
+
+            4. 如果 class_name 不是 ''path_a_location'',严格只输出:NOT_MY_PATH
+
+            5. 回答简洁,不超过 100 字
+
+
+            用户问: {{#5001.input_text#}}
+
+            意图分类: {{#5003.class_name#}}
+
+            项目功能库检索结果:
+
+            {{#5010.result#}}'
+        - role: user
+          text: '{{#5001.input_text#}}'
+        context:
+          enabled: true
+          variable_selector:
+          - '5010'
+          - result
+        vision:
+          enabled: false
+        reasoning_format: separated
+      position: &id003
+        x: 700
+        y: -300
+      positionAbsolute: *id003
+      width: 280
+      height: 130
+    - id: '5020'
+      data:
+        type: knowledge-retrieval
+        title: KR 项目功能库 (操作步骤)
+        dataset_ids:
+        - cec64ce0-c15f-4315-88a2-1c1c0af90d21
+        retrieval_mode: multiple
+        multiple_retrieval_config:
+          top_k: 5
+          score_threshold: 0.3
+          reranking_enable: false
+        query_variable_selector:
+        - '5001'
+        - input_text
+        query_attachment:
+          enabled: false
+      position: &id004
+        x: 420
+        y: -130
+      positionAbsolute: *id004
+      width: 244
+      height: 90
+    - id: '5021'
+      data:
+        type: llm
+        title: LLM 路径B (业务操作)
+        model: *id002
+        prompt_template:
+        - role: system
+          text: '你是充电桩智能客服,正在回答用户关于**业务操作/规则**的问题。
+
+
+            **核心规则**:
+
+            1. **严格只输出最终答案文本,不要任何<think>推理过程**
+
+            2. **必须基于上下文回答,严禁编造**
+
+            3. 如果上下文为空或无关,直接说:"该问题暂未收录到公开知识库,建议联系平台客服获取详细指引"
+
+            4. 如果 class_name 不是 ''path_b_business'',严格只输出:NOT_MY_PATH
+
+            5. 回答简洁,150 字以内,引用原文
+
+
+            用户问: {{#5001.input_text#}}
+
+            意图分类: {{#5003.class_name#}}
+
+            项目功能库检索结果:
+
+            {{#5020.result#}}'
+        - role: user
+          text: '{{#5001.input_text#}}'
+        context:
+          enabled: true
+          variable_selector:
+          - '5020'
+          - result
+        vision:
+          enabled: false
+        reasoning_format: separated
+      position: &id005
+        x: 700
+        y: -130
+      positionAbsolute: *id005
+      width: 280
+      height: 130
+    - id: '5030'
+      data:
+        type: knowledge-retrieval
+        title: KR 流程
+        dataset_ids:
+        - e2528c50-61e3-40f0-98c2-1adc0042588f
+        retrieval_mode: multiple
+        multiple_retrieval_config:
+          top_k: 5
+          score_threshold: 0.3
+          reranking_enable: false
+        query_variable_selector:
+        - '5001'
+        - input_text
+        query_attachment:
+          enabled: false
+      position: &id006
+        x: 420
+        y: 40
+      positionAbsolute: *id006
+      width: 244
+      height: 90
+    - id: '5031'
+      data:
+        type: llm
+        title: LLM 路径C (流程卡点)
+        model: *id002
+        prompt_template:
+        - role: system
+          text: '你是充电桩智能客服,正在诊断用户**流程被拦截/卡住**的问题。
+
+
+            **核心规则**:
+
+            1. **严格只输出最终答案文本,不要任何<think>推理过程**
+
+            2. **必须基于上下文回答,严禁编造**
+
+            3. 如果上下文为空或无关,直接说:"该流程问题暂未收录,建议提供具体操作页面和错误提示"
+
+            4. 如果 class_name 不是 ''path_c_process'',严格只输出:NOT_MY_PATH
+
+
+            用户问: {{#5001.input_text#}}
+
+            意图分类: {{#5003.class_name#}}
+
+            流程库检索结果:
+
+            {{#5030.result#}}'
+        - role: user
+          text: '{{#5001.input_text#}}'
+        context:
+          enabled: true
+          variable_selector:
+          - '5030'
+          - result
+        vision:
+          enabled: false
+        reasoning_format: separated
+      position: &id007
+        x: 700
+        y: 40
+      positionAbsolute: *id007
+      width: 280
+      height: 130
+    - id: '5040'
+      data:
+        type: knowledge-retrieval
+        title: KR FAQ
+        dataset_ids:
+        - 1d97ad23-f8b1-44ba-9a5f-fa2c578cffdd
+        retrieval_mode: multiple
+        multiple_retrieval_config:
+          top_k: 5
+          score_threshold: 0.3
+          reranking_enable: false
+        query_variable_selector:
+        - '5001'
+        - input_text
+        query_attachment:
+          enabled: false
+      position: &id008
+        x: 420
+        y: 210
+      positionAbsolute: *id008
+      width: 244
+      height: 90
+    - id: '5041'
+      data:
+        type: llm
+        title: LLM 路径D (bug/FAQ)
+        model: *id002
+        prompt_template:
+        - role: system
+          text: '你是充电桩智能客服,正在处理用户**bug/问题反馈**(可能带截图)。
+
+
+            **核心规则**:
+
+            1. **严格只输出最终答案文本,不要任何<think>推理过程**
+
+            2. **必须基于上下文回答,严禁编造**
+
+            3. 如果上下文为空或无关,直接说:"已记录您的问题,会转给技术团队跟进"
+
+            4. 如果 class_name 不是 ''path_d_bug'',严格只输出:NOT_MY_PATH
+
+
+            用户问: {{#5001.input_text#}}
+
+            意图分类: {{#5003.class_name#}}
+
+            FAQ 知识库检索结果:
+
+            {{#5040.result#}}'
+        - role: user
+          text: '{{#5001.input_text#}}'
+        context:
+          enabled: true
+          variable_selector:
+          - '5040'
+          - result
+        vision:
+          enabled: false
+        reasoning_format: separated
+      position: &id009
+        x: 700
+        y: 210
+      positionAbsolute: *id009
+      width: 280
+      height: 130
+    - id: '5004'
+      data:
+        type: llm
+        title: LLM unclear (引导)
+        model: *id002
+        prompt_template:
+        - role: system
+          text: '你是充电桩智能客服,用户输入模糊或太短。
+
+
+            **核心规则**:
+
+            1. **严格只输出最终答案文本,不要任何<think>推理过程**
+
+            2. 礼貌引导用户选择 4 类方向
+
+            3. 如果 class_name 不是 ''path_e_unclear'',严格只输出:NOT_MY_PATH
+
+
+            用户问: {{#5001.input_text#}}
+
+            意图分类: {{#5003.class_name#}}'
+        - role: user
+          text: '{{#5001.input_text#}}'
+        context:
+          enabled: false
+          variable_selector: []
+        vision:
+          enabled: false
+        reasoning_format: separated
+      position: &id010
+        x: 700
+        y: 380
+      positionAbsolute: *id010
+      width: 280
+      height: 130
+    - id: '5098'
+      data:
+        type: code
+        title: code_选择最优答案
+        code: "\ndef main(text_a, text_b, text_c, text_d, text_e):\n    for t in [text_a,\
+          \ text_b, text_c, text_d, text_e]:\n        if t and t.strip() and t.strip()\
+          \ != \"NOT_MY_PATH\":\n            return {\"text\": t}\n    return {\"\
+          text\": \"抱歉,我没理解您的问题。请问您想咨询:1)功能位置 2)业务规则 3)流程问题 4)Bug反馈?\"}\n"
+        code_language: python3
+        variables:
+        - variable: text_a
+          value_selector:
+          - '5011'
+          - text
+        - variable: text_b
+          value_selector:
+          - '5021'
+          - text
+        - variable: text_c
+          value_selector:
+          - '5031'
+          - text
+        - variable: text_d
+          value_selector:
+          - '5041'
+          - text
+        - variable: text_e
+          value_selector:
+          - '5004'
+          - text
+        outputs:
+          text:
+            type: string
+            children: null
+      position: &id011
+        x: 1200
+        y: 0
+      positionAbsolute: *id011
+      width: 280
+      height: 130
+    - id: '5099'
+      data:
+        type: end
+        title: 输出 AI 回答
+        outputs:
+        - variable: text
+          value_selector:
+          - '5098'
+          - text
+          value_type: string
+      position:
+        x: 1700
+        y: 0
+      positionAbsolute:
+        x: 1700
+        y: 0
+      width: 244
+      height: 80
+    edges:
+    - id: e-5001-5002
+      source: '5001'
+      target: '5002'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5002-5003
+      source: '5002'
+      target: '5003'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5003-5010
+      source: '5003'
+      target: '5010'
+      sourceHandle: class_a
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5003-5020
+      source: '5003'
+      target: '5020'
+      sourceHandle: class_b
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5003-5030
+      source: '5003'
+      target: '5030'
+      sourceHandle: class_c
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5003-5040
+      source: '5003'
+      target: '5040'
+      sourceHandle: class_d
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5003-5004
+      source: '5003'
+      target: '5004'
+      sourceHandle: class_e
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5010-5011
+      source: '5010'
+      target: '5011'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5020-5021
+      source: '5020'
+      target: '5021'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5030-5031
+      source: '5030'
+      target: '5031'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5040-5041
+      source: '5040'
+      target: '5041'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5011-5098
+      source: '5011'
+      target: '5098'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5021-5098
+      source: '5021'
+      target: '5098'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5031-5098
+      source: '5031'
+      target: '5098'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5041-5098
+      source: '5041'
+      target: '5098'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5004-5098
+      source: '5004'
+      target: '5098'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any
+    - id: e-5098-5099
+      source: '5098'
+      target: '5099'
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: any
+        targetType: any

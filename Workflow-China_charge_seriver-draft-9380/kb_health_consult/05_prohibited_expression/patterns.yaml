@@ -1,0 +1,74 @@
+# 05 禁止表达库 — final_guard 节点扫的正则清单
+禁止pattern(命中即替换):
+  - pattern: "确诊.{0,5}骨质"
+    type: 确诊疾病
+    replacement: "您的报告提示存在骨质疏松风险,建议尽早就医评估"
+  - pattern: "诊断.{0,5}骨质"
+    type: 确诊疾病
+    replacement: "您的报告提示存在骨质疏松风险,建议尽早就医评估"
+  - pattern: "你得了"
+    type: 确诊疾病
+    replacement: "报告提示存在相关风险"
+  - pattern: "你患有"
+    type: 确诊疾病
+    replacement: "报告提示存在相关风险"
+  - pattern: "你患了"
+    type: 确诊疾病
+    replacement: "报告提示存在相关风险"
+  - pattern: "能治疗"
+    type: 承诺疗效
+    replacement: "有助于改善"
+  - pattern: "能根治"
+    type: 承诺疗效
+    replacement: "有助于控制"
+  - pattern: "可以治愈"
+    type: 承诺疗效
+    replacement: "有助于改善"
+  - pattern: "包治好"
+    type: 承诺疗效
+    replacement: "有助于改善"
+  - pattern: "不用去医院"
+    type: 阻止就医
+    replacement: "建议尽快去医院"
+  - pattern: "不用看医生"
+    type: 阻止就医
+    replacement: "建议尽快看医生"
+  - pattern: "一定能好"
+    type: 承诺疗效
+    replacement: "有助于改善"
+  - pattern: "保证有效"
+    type: 承诺疗效
+    replacement: "有助于改善"
+  - pattern: "包有效"
+    type: 承诺疗效
+    replacement: "有助于改善"
+  - pattern: "立即.{0,5}(用药|服药)"
+    type: 指导用药
+    replacement: "建议咨询医生"
+  - pattern: "马上.{0,5}(用药|服药)"
+    type: 指导用药
+    replacement: "建议咨询医生"
+
+统一安全话术(命中禁止词后替换使用):
+  default_safe_message: "您的健康问题较为专业,建议联系专业医生或前往医院进行系统评估。本助手仅能基于您提供的报告进行基础解读,不能替代专业医疗建议。"
+  urgent_safe_message: "检测到您描述的症状可能涉及紧急情况,请立即前往最近的医院急诊或拨打 120。"
+
+正则匹配规则:
+  全文扫描(ignore case)
+  中文字符匹配无空格
+  命中任一即替换整段为 safe_message
+  final_guard 节点是最后一道防线,任何 LLM 输出都要过这一关
+
+边界豁免(这些术语不在禁止清单内):
+  - "可能"
+  - "建议"
+  - "有助于"
+  - "考虑"
+  - "疑似"
+  - "提示"
+  - "风险"
+  - "正常"
+  - "偏低"
+  - "可能提示"
+  - "提示存在"
+  - 这些词是医学报告解读中的标准用词,不应被误禁
