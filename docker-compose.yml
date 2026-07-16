@@ -22,16 +22,14 @@ services:
       context: ./frontend
     container_name: china-charge-frontend
     depends_on:
-      backend:
+      backend-dify:
         condition: service_healthy
     ports:
       - "8082:80"
-    # 如果需要直接访问后端，可以取消下面的注释
-    # environment:
-    #   - VITE_API_BASE=http://localhost:8011
+    restart: unless-stopped
 
-  # Dify 后端 (与 Coze 后端并列,默认端口 8012 防止冲突)
-  # 前端切换方式: 启动时 VITE_API_BASE=http://localhost:8012 重新 build
+  # Dify chatflow 后端 (H5 充电客服 /chat/api, 端口 8012)
+  # 单一后端: 替代原宿主 uvicorn + Dify compose backend-dify-internal 双部署
   backend-dify:
     env_file:
       - ./backend/.env.dify
@@ -42,7 +40,7 @@ services:
     environment:
       PORT: 8012
     ports:
-      - "8012:8012"
+      - "127.0.0.1:8012:8012"
     restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8012/api/health"]
@@ -50,9 +48,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - default
+      - dify_default
 
-  # AI 健康咨询模块 (health_consult, 端口 8013)
-  # 前端切换方式: VITE_API_BASE=http://localhost:8013 重新 build
   backend-health-consult:
     env_file:
       - ./backend/.env.dify-consult
@@ -72,12 +71,26 @@ services:
       retries: 3
       start_period: 10s
 
-  # 可选：使用 watchtower 自动更新容器（生产环境推荐）
-  # watchtower:
-  #   image: containrrr/watchtower
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   command: --interval 3600 --cleanup
-  #   depends_on:
-  #     - frontend
-  #     - backend
+  backend-charge-consult:
+    env_file:
+      - ./backend/.env.dify-charge
+    build:
+      context: ./backend
+      dockerfile: charge_consult/Dockerfile
+    container_name: china-charge-backend-charge-consult
+    environment:
+      PORT: 8014
+    ports:
+      - "8014:8014"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8014/api/charge-consult/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  dify_default:
+    external: true
+    name: docker_default

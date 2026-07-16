@@ -1,15 +1,24 @@
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
-from typing import Optional
+import uuid
+from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app_dify.config import settings
-from app_dify.dify_client import DifyClient, DifyError
+from app_dify.dify_client import (
+    DifyClient,
+    DifyError,
+    SWITCH_TO_BUG,
+    SWITCH_TO_KB_REENTRY,
+    SWITCH_TO_KB_DONE,
+    parse_switch_markers,
+    strip_sys_markers,
+)
 from app_dify.response_parser import extract_assistant_text_and_media
 from app_dify.schemas import ChatResponse, MediaItem
 
@@ -21,7 +30,7 @@ log = logging.getLogger("app_dify")
 
 app = FastAPI(
     title="China Charge - Dify H5 Chat Backend",
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     redoc_url="/api/redoc",
@@ -36,20 +45,9 @@ app.add_middleware(
 )
 
 
-@app.get("/api/health")
-async def health() -> dict:
-    return {
-        "ok": True,
-        "backend": "dify",
-        "api_base": settings.dify_api_base,
-        "end_user": settings.dify_end_user,
-    }
-
-
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon() -> Response:
-    return Response(status_code=204)
-
+# ----------------------------------------------------------------------
+# Helpers
+# ----------------------------------------------------------------------
 
 def _sniff_audio_type(filename: str, declared: str | None) -> str:
     """Normalize audio MIME type for Dify upload (Dify accepts wav/mp3/m4a/webm)."""
@@ -69,93 +67,296 @@ def _sniff_audio_type(filename: str, declared: str | None) -> str:
     return declared or "audio/wav"
 
 
+# 前端 language 值 -> chatflow input_language select 接受的代码
+# (app A/B 的 input_language 仅接受 ['zh','en','vi','th','ne',''])
+_LANG_MAP = {
+    "普通话": "zh", "中文": "zh", "zh": "zh", "chinese": "zh", "cn": "zh",
+    "英文": "en", "英语": "en", "en": "en", "english": "en",
+    "越南语": "vi", "vi": "vi", "vietnamese": "vi",
+    "泰语": "th", "th": "th", "thai": "th",
+}
+
+
+def _normalize_language(raw: str) -> str:
+    """把前端发的语言文案归一化为 chatflow input_language 代码; 无法识别返回 ''。"""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    return _LANG_MAP.get(s.lower(), "")
+
+
+def _detect_image_mime(content: bytes, filename: str = "") -> str:
+    """图片 MIME 魔数检测 (回退到扩展名)。Dify 按真实类型存, 错配会导致 vision 失败。"""
+    if content[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if content[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if content[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "image/webp"
+    name = (filename or "").lower()
+    if name.endswith(".png"):
+        return "image/png"
+    if name.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if name.endswith(".gif"):
+        return "image/gif"
+    if name.endswith(".webp"):
+        return "image/webp"
+    return "image/jpeg"
+
+
+# ----------------------------------------------------------------------
+# ChatflowRouter: A/B 双 app marker 路由, 与 WeCom 机器人对齐
+# ----------------------------------------------------------------------
+
+class ChatflowRouter:
+    """双 chatflow app 路由器。
+
+    - app A (charge_charging_A_kbqa): KB 问答主入口
+    - app B (charge_charging_B_bugtrack): bug 追踪
+    - marker 驱动改投: SWITCH_TO_BUG(A->B) / KB_REENTRY(B->A) / KB_DONE(B->A 收尾)
+    - 每 session 维持 {active, conv_a, conv_b} 多轮状态 (内存, 进程内)
+    - 图片/音频在【发送点】按目标 app 上传, 根除跨 app file_id 失效
+    """
+
+    _MAX_ROUTES = 3  # 防 A<->B ping-pong 改投上限
+
+    def __init__(self, api_base: str, key_a: str, key_b: str, end_user: str) -> None:
+        if not key_a:
+            raise RuntimeError("DIFY_API_KEY_A (或旧 DIFY_API_KEY) 未配置")
+        self._api_base = api_base
+        self._end_user = end_user
+        self._client_a = DifyClient(api_base, key_a, end_user)
+        self._dual = bool(key_b)
+        self._client_b = DifyClient(api_base, key_b, end_user) if self._dual else None
+        self._store: dict[str, dict] = {}
+        self._lock = asyncio.Lock()
+
+    def _client_for(self, app: str) -> DifyClient:
+        if self._dual and app == "B":
+            return self._client_b  # type: ignore[return-value]
+        return self._client_a
+
+    async def _build_files(
+        self,
+        client: DifyClient,
+        image_bytes: bytes | None,
+        image_name: str | None,
+        audio_bytes: bytes | None,
+        audio_name: str | None,
+    ) -> list[dict[str, Any]]:
+        """在发送点把图片/音频上传到【目标 client 绑定的 app】并构造 files 数组。
+
+        跨 app 改投时会用新 target client 再次调用本方法重新上传, 保证 file_id
+        归属正确 (A 的 file_id 不能发给 B)。
+        """
+        files: list[dict[str, Any]] = []
+        if image_bytes:
+            ctype = _detect_image_mime(image_bytes, image_name or "")
+            fid = await client.upload_file(
+                filename=image_name or "image.png",
+                content=image_bytes,
+                content_type=ctype,
+            )
+            files.append(DifyClient.file_ref(fid, "image"))
+            log.info("[ROUTER] 图片上传至 app=%s file_id=%s size=%dB", client.api_key[:10], fid, len(image_bytes))
+        if audio_bytes:
+            ctype = _sniff_audio_type(audio_name or "", None)
+            fid = await client.upload_file(
+                filename=audio_name or "audio.wav",
+                content=audio_bytes,
+                content_type=ctype,
+            )
+            files.append(DifyClient.file_ref(fid, "audio"))
+        return files
+
+    async def _call(
+        self,
+        client: DifyClient,
+        query: str,
+        inputs: dict[str, Any],
+        files: list[dict[str, Any]],
+        conversation_id: str,
+    ) -> dict[str, Any]:
+        """调 chatflow; 若 files 触发 400(如 app 不接受某类文件)降级为纯文本重试。"""
+        try:
+            return await client.run_chatflow(
+                query=query, inputs=inputs, files=files or None,
+                conversation_id=conversation_id,
+            )
+        except DifyError as e:
+            if files and "400" in str(e):
+                log.warning("[ROUTER] 带文件调用失败, 降级纯文本重试: %s", str(e)[:160])
+                return await client.run_chatflow(
+                    query=query, inputs=inputs, files=None,
+                    conversation_id=conversation_id,
+                )
+            raise
+
+    async def chat(
+        self,
+        *,
+        session_id: str,
+        text: str,
+        image_bytes: bytes | None = None,
+        image_name: str | None = None,
+        audio_bytes: bytes | None = None,
+        audio_name: str | None = None,
+        language: str = "",
+    ) -> dict[str, Any]:
+        query = (text or "").strip() or "收到您的消息"
+        inputs: dict[str, Any] = {}
+        lang = (language or "").strip()
+        if lang:
+            inputs["input_language"] = lang
+
+        async with self._lock:
+            state = dict(self._store.get(session_id) or {"active": "A", "conv_a": "", "conv_b": ""})
+
+        active = state.get("active", "A")
+        client = self._client_for(active)
+        conv_id = (state.get("conv_a") if active == "A" else state.get("conv_b")) or ""
+        files = await self._build_files(client, image_bytes, image_name, audio_bytes, audio_name)
+
+        raw = await self._call(client, query, inputs, files, conv_id)
+        answer = (raw or {}).get("answer") or ""
+        new_conv = (raw or {}).get("conversation_id") or ""
+        if new_conv:
+            state["conv_a" if active == "A" else "conv_b"] = new_conv
+
+        # 双 app marker 驱动改投循环
+        if self._dual:
+            for _ in range(self._MAX_ROUTES):
+                answer, switches = parse_switch_markers(answer)
+                re_route: Optional[str] = None
+                if SWITCH_TO_BUG in switches and active == "A":
+                    state["active"] = "B"
+                    re_route = "B"
+                elif SWITCH_TO_KB_REENTRY in switches and active == "B":
+                    state["active"] = "A"
+                    re_route = "A"
+                elif SWITCH_TO_KB_DONE in switches and active == "B":
+                    state["active"] = "A"  # 发 B 话术, 下条->A, 不改投
+                if not re_route:
+                    break
+                target = self._client_for(re_route)
+                tconv = (state.get("conv_b") if re_route == "B" else state.get("conv_a")) or ""
+                tfiles = await self._build_files(target, image_bytes, image_name, audio_bytes, audio_name)
+                raw2 = await self._call(target, query, inputs, tfiles, tconv)
+                answer = (raw2 or {}).get("answer") or ""
+                nc2 = (raw2 or {}).get("conversation_id") or ""
+                if nc2:
+                    state["conv_b" if re_route == "B" else "conv_a"] = nc2
+                active = state.get("active", "A")
+                new_conv = nc2 or new_conv
+
+        # 剥离所有 <!--SYS:...--> 控制标记 (SWITCH 残留 + TIMER 等 WeCom 协议标记)。
+        # H5 不作用于这些协议标记, 统一从用户可见文本移除。
+        answer = strip_sys_markers(answer)
+
+        async with self._lock:
+            self._store[session_id] = state
+
+        log.info(
+            "[ROUTER] session=%s active=%s conv_a=%s conv_b=%s answer_len=%d",
+            session_id[:12], state.get("active"), (state.get("conv_a") or "")[:8],
+            (state.get("conv_b") or "")[:8], len(answer),
+        )
+
+        # 归一化为 workflow 形态, 复用 response_parser 抽取 text + media
+        normalized_raw = {
+            "data": {"outputs": {"output": answer, "answer": answer}},
+            "conversation_id": new_conv,
+        }
+        return {"assistant_text": answer, "raw": normalized_raw, "conversation_id": new_conv}
+
+
+router = ChatflowRouter(
+    api_base=settings.dify_api_base,
+    key_a=settings.api_key_a,
+    key_b=settings.dify_api_key_b,
+    end_user=settings.dify_end_user,
+)
+
+
+# ----------------------------------------------------------------------
+# Endpoints
+# ----------------------------------------------------------------------
+
+@app.get("/api/health")
+async def health() -> dict:
+    return {
+        "ok": True,
+        "backend": "dify-chatflow",
+        "api_base": settings.dify_api_base,
+        "end_user": settings.dify_end_user,
+        "dual_app": router._dual,
+    }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> Response:
+    return Response(status_code=204)
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
     text: str = Form(""),
     image: Optional[UploadFile] = File(default=None),
     audio: Optional[UploadFile] = File(default=None),
     language: str = Form("中文"),
+    session_id: Optional[str] = Form(default=None),
 ) -> ChatResponse:
-    client = DifyClient(
-        api_base=settings.dify_api_base,
-        api_key=settings.dify_api_key,
-        end_user=settings.dify_end_user,
-    )
+    # session_id: 前端 localStorage 持久化; 首次不传则后端生成并回传
+    sid = (session_id or "").strip() or f"h5-{uuid.uuid4().hex}"
 
-    image_id: Optional[str] = None
+    image_bytes: bytes | None = None
+    image_name: str | None = None
     if image is not None:
         content = await image.read()
         if content:
-            try:
-                image_id = await client.upload_file(
-                    filename=image.filename or "image",
-                    content=content,
-                    content_type=image.content_type or "image/jpeg",
-                )
-                log.info("Uploaded image to Dify: file_id=%s size=%d", image_id, len(content))
-            except DifyError as e:
-                return ChatResponse(
-                    assistant_text=f"[DifyError:image_upload] {e}",
-                    image_id=None,
-                    audio_id=None,
-                    raw=None,
-                )
+            image_bytes = content
+            image_name = image.filename or "image"
 
-    audio_id: Optional[str] = None
+    audio_bytes: bytes | None = None
+    audio_name: str | None = None
     if audio is not None:
         content = await audio.read()
         if content:
-            ctype = _sniff_audio_type(audio.filename or "", audio.content_type)
-            try:
-                audio_id = await client.upload_file(
-                    filename=audio.filename or "audio.wav",
-                    content=content,
-                    content_type=ctype,
-                )
-                log.info(
-                    "Uploaded audio to Dify: file_id=%s size=%d ctype=%s",
-                    audio_id, len(content), ctype,
-                )
-            except DifyError as e:
-                return ChatResponse(
-                    assistant_text=f"[DifyError:audio_upload] {e}",
-                    image_id=image_id,
-                    audio_id=None,
-                    raw=None,
-                )
+            audio_bytes = content
+            audio_name = audio.filename or "audio.wav"
 
-    # ---- Build workflow inputs ----
-    # Dify workflow 文件型输入必须是数组,即使只有一个文件
-    inputs: dict = {
-        settings.dify_input_text: text or "",
-        settings.dify_input_language: language,
-    }
-    if image_id:
-        inputs[settings.dify_input_image] = [client.file_ref(image_id, "image")]
-    if audio_id:
-        inputs[settings.dify_input_audio] = [client.file_ref(audio_id, "audio")]
-
-    log.info("Dify workflow inputs keys=%s", list(inputs.keys()))
-
-    # ---- Run workflow ----
     try:
-        raw = await client.run_workflow(inputs=inputs, response_mode="blocking")
+        result = await router.chat(
+            session_id=sid,
+            text=text,
+            image_bytes=image_bytes,
+            image_name=image_name,
+            audio_bytes=audio_bytes,
+            audio_name=audio_name,
+            language=_normalize_language(language),
+        )
     except DifyError as e:
-        log.error("Dify workflow error: %s", e)
+        log.error("Chatflow error: %s", e)
         return ChatResponse(
-            assistant_text=f"[DifyError:workflow] {e}",
-            image_id=image_id,
-            audio_id=audio_id,
+            assistant_text=f"[DifyError:chatflow] {e}",
+            image_id=None,
+            audio_id=None,
+            media=[],
             raw=None,
+            session_id=sid,
         )
 
     assistant_text, media = extract_assistant_text_and_media(
-        raw, preferred_key=settings.dify_output_text
+        result["raw"], preferred_key="output"
     )
     return ChatResponse(
         assistant_text=assistant_text,
-        image_id=image_id,
-        audio_id=audio_id,
+        image_id=None,
+        audio_id=None,
         media=[MediaItem(**m) for m in media],
-        raw=raw,
+        raw=result["raw"],
+        session_id=sid,
     )

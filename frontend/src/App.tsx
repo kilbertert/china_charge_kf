@@ -211,6 +211,14 @@ function App() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [lang, setLang] = useState<Language>('zh')
+  // 会话标识: 持久化到 localStorage, 续接多轮与 A/B 路由状态; 首次为空由后端生成回传
+  const [sessionId, setSessionId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('chat_session_id') || ''
+    } catch {
+      return ''
+    }
+  })
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
   const [isMorePanelOpen, setIsMorePanelOpen] = useState(false)
@@ -411,6 +419,7 @@ function App() {
       const fd = new FormData()
       fd.append('text', trimmed)
       fd.append('language', languageParams[lang])
+      if (sessionId) fd.append('session_id', sessionId)
       if (file) fd.append('image', file)
       if (audioBlob) {
         // 根据 MIME 类型选择合适的扩展名（Coze 支持 wav, mp3, m4a 等）
@@ -421,6 +430,16 @@ function App() {
 
       const resp = await fetch(`${apiBase}/api/chat`, { method: 'POST', body: fd })
       const data = await resp.json().catch(() => null)
+
+      // 后端可能生成并回传新 session_id, 持久化以续接后续多轮
+      if (data?.session_id && data.session_id !== sessionId) {
+        setSessionId(data.session_id)
+        try {
+          localStorage.setItem('chat_session_id', data.session_id)
+        } catch {
+          /* ignore quota / privacy mode */
+        }
+      }
 
       if (!resp.ok) {
         const msg = (data && (data.detail || data.message)) || `${t.requestFailed}: HTTP ${resp.status}`

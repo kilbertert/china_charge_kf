@@ -16,26 +16,28 @@ class Settings(BaseSettings):
     port: int = 8012  # default 8012 to avoid collision with coze backend (8011)
 
     # ---- Dify ----
-    # Cloud (海外): https://api.dify.ai/v1
-    # 阿里云/国服:  https://api.dify.ai/v1  (统一域名,自动路由)
+    # Chatflow (advanced-chat) app 体系: A=KB 问答, B=bug 追踪。
+    # 双 app marker 路由(SWITCH_TO_BUG / KB_REENTRY / KB_DONE)与 WeCom 机器人对齐。
     dify_api_base: str = "https://api.dify.ai/v1"
-    dify_api_key: str  # 必填, 形如 app-xxxx
-    # Workflow 输入变量名 — 与 Dify 工作流"开始"节点保持一致
-    dify_input_text: str = "input_text"
-    dify_input_image: str = "input_img_id"
-    dify_input_audio: str = "input_audio_id"
-    dify_input_language: str = "language"
-    # end-user 标识 (Dify 强制要求)
+    # app A token (必填)。dify_api_key 为旧单 app 兼容回退。
+    dify_api_key_a: str = ""
+    dify_api_key_b: str = ""  # app B token; 留空 = 单 app 模式(不做 bug 改投)
+    dify_api_key: str = ""  # 旧字段, 仅当 dify_api_key_a 为空时作 A 回退
+    # end-user 标识 (Dify 强制要求)。H5 用 session_id 作 end_user 实现按会话隔离;
+    # 此字段为健康检查展示与兜底默认值。
     dify_end_user: str = "h5-frontend-user"
-    # 输出变量名 — workflow 结束节点"直接回复"里设置的变量
-    dify_output_text: str = "output"
-    # 可选: workflow 若把 media 单独输出为一个变量,指明其变量名;目前实现把
-    # 整个响应 JSON 解析在 dify_output_text 里,所以此字段留作未来扩展位。
-    dify_output_media: str = "media"
+    # chatflow user_input_form select 字段透传 (L1 板块路由)。前端发 language ->
+    # input_language。留空则不传, Dify 用字段 default。
+    dify_chatflow_input_language: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.app_cors_origins.split(",") if o.strip()]
+
+    @property
+    def api_key_a(self) -> str:
+        """app A 的有效 token (优先 key_a, 回退旧 key)。"""
+        return self.dify_api_key_a or self.dify_api_key
 
 
 settings = Settings()  # type: ignore[call-arg]

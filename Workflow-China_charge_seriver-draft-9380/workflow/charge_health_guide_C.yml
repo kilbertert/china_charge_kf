@@ -1,0 +1,770 @@
+app:
+  description: 'App C: 健康严选AI导游(体检报告识别+多轮问诊+5轮延迟商品推荐). model=Doubao-Seed-2.0-lite, 预留deepseek-reasoner切换(改model.name)'
+  icon: 🩺
+  icon_background: '#E0F0FF'
+  icon_type: emoji
+  mode: advanced-chat
+  name: health_yanxuan_guide_C
+  use_icon_as_answer_icon: false
+dependencies:
+  - current_identifier:
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/volcengine_maas:0.0.51@10500d8c8e350242a0db2dda11c276685ab947ec0b41f9b94ea73c2919aacab7
+      version:
+  - current_identifier:
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/tongyi:0.2.0@4e5891a2f4fff19b005a662a1fadff0e56b62b2dd1b4a93bdffae83c5b38b05e
+      version:
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+    - id: c7000-0001-4000-8000-000000000001
+      name: cv_round
+      value: 0
+      value_type: number
+      description: 对话轮次计数(0起始,每轮+1,>=5触发商品推荐分支)
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: true
+      allowed_file_types:
+        - image
+        - document
+      allowed_file_extensions:
+        - JPG
+        - PNG
+        - JPEG
+        - WEBP
+        - PDF
+        - DOCX
+      allowed_file_upload_methods:
+        - remote_url
+        - local_file
+      fileUploadConfig:
+        file_size_limit: 15
+        image_file_size_limit: 10
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        batch_count_limit: 5
+        audio_file_size_limit: 50
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+        attachment_image_file_size_limit: 2
+        single_chunk_attachment_limit: 10
+      image:
+        enabled: true
+        number_limits: 3
+        transfer_methods:
+          - local_file
+          - remote_url
+    opening_statement: 您好!我是您的健康严选AI导游。您可以输入健康疑问,或上传体检/化验报告,我将为您解读并给出专业建议。
+    suggested_questions: []
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          sourceType: start
+          targetType: code
+        id: e-7001-7002-source
+        source: '7001'
+        sourceHandle: source
+        target: '7002'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: code
+        id: e-7002-7020-source
+        source: '7002'
+        sourceHandle: source
+        target: '7020'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: assigner
+        id: e-7020-7020a-source
+        source: '7020'
+        sourceHandle: source
+        target: 7020a
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: assigner
+          targetType: if-else
+        id: e-7020a-7021-source
+        source: 7020a
+        sourceHandle: source
+        target: '7021'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: llm
+        id: e-7021-7030-first_round
+        source: '7021'
+        sourceHandle: first_round
+        target: '7030'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: code
+        id: e-7030-7030b-source
+        source: '7030'
+        sourceHandle: source
+        target: 7030b
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: if-else
+        id: e-7030b-7031-source
+        source: 7030b
+        sourceHandle: source
+        target: '7031'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: llm
+        id: e-7031-7033-healthy
+        source: '7031'
+        sourceHandle: healthy
+        target: '7033'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: answer
+        id: e-7031-7032-unhealthy
+        source: '7031'
+        sourceHandle: unhealthy
+        target: '7032'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-7033-7034-source
+        source: '7033'
+        sourceHandle: source
+        target: '7034'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: if-else
+        id: e-7021-7040-later
+        source: '7021'
+        sourceHandle: later
+        target: '7040'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: llm
+        id: e-7040-7041-probe
+        source: '7040'
+        sourceHandle: probe
+        target: '7041'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-7041-7042-source
+        source: '7041'
+        sourceHandle: source
+        target: '7042'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: knowledge-retrieval
+        id: e-7040-7050-recommend
+        source: '7040'
+        sourceHandle: recommend
+        target: '7050'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: knowledge-retrieval
+          targetType: llm
+        id: e-7050-7051-source
+        source: '7050'
+        sourceHandle: source
+        target: '7051'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: answer
+        id: e-7051-7052-source
+        source: '7051'
+        sourceHandle: source
+        target: '7052'
+        targetHandle: target
+        type: custom
+    nodes:
+      - data:
+          title: Start
+          type: start
+          selected: false
+          variables:
+            - default: ''
+              label: 语言(空=自动)
+              options:
+                - zh
+                - en
+                - ''
+              required: false
+              type: select
+              variable: input_language
+        height: 120
+        id: '7001'
+        position:
+          x: -800
+          y: 0
+        positionAbsolute:
+          x: -800
+          y: 0
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: code_准备输入
+          type: code
+          selected: false
+          code: "def main(query: str, input_language: str, files: list) -> dict:\n    text = (query or '').strip()\n    if input_language and input_language.strip():\n        lang = input_language.strip()\n    else:\n        cjk = sum(1 for c in text if '一' <= c <= '鿿')\n        lang = 'zh' if cjk > 0 else 'en'\n    has_file = bool(files) and len(files) > 0\n    return {'query_text': text, 'language': lang, 'has_file': has_file}\n"
+          code_language: python3
+          outputs:
+            query_text:
+              children:
+              type: string
+            language:
+              children:
+              type: string
+            has_file:
+              children:
+              type: boolean
+          variables:
+            - value_selector:
+                - sys
+                - query
+              variable: query
+            - value_selector:
+                - '7001'
+                - input_language
+              variable: input_language
+            - value_selector:
+                - sys
+                - files
+              variable: files
+        height: 120
+        id: '7002'
+        position:
+          x: -480
+          y: 0
+        positionAbsolute:
+          x: -480
+          y: 0
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: code_算轮次
+          type: code
+          selected: false
+          code: "def main(cv_round: float) -> dict:\n    r = int(cv_round or 0) + 1\n    is_first = (r == 1)\n    stage = 'recommend' if r >= 5 else 'probe'\n    return {'round': r, 'is_first': is_first, 'round_stage': stage}\n"
+          code_language: python3
+          outputs:
+            round:
+              children:
+              type: number
+            is_first:
+              children:
+              type: boolean
+            round_stage:
+              children:
+              type: string
+          variables:
+            - value_selector:
+                - conversation
+                - cv_round
+              variable: cv_round
+        height: 90
+        id: '7020'
+        position:
+          x: -160
+          y: 0
+        positionAbsolute:
+          x: -160
+          y: 0
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: assigner_轮次+1
+          type: assigner
+          selected: false
+          items:
+            - input_type: variable
+              operation: over-write
+              value:
+                - '7020'
+                - round
+              variable_selector:
+                - conversation
+                - cv_round
+          version: '2'
+        height: 88
+        id: 7020a
+        position:
+          x: 120
+          y: 0
+        positionAbsolute:
+          x: 120
+          y: 0
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: if_第1轮
+          type: if-else
+          selected: false
+          cases:
+            - case_id: first_round
+              logical_operator: and
+              conditions:
+                - comparison_operator: is
+                  id: c_fr_0
+                  value: 'true'
+                  varType: boolean
+                  variable_selector:
+                    - '7020'
+                    - is_first
+            - case_id: later
+              logical_operator: and
+              conditions:
+                - comparison_operator: is
+                  id: c_lt_0
+                  value: 'false'
+                  varType: boolean
+                  variable_selector:
+                    - '7020'
+                    - is_first
+        height: 118
+        id: '7021'
+        position:
+          x: 380
+          y: 0
+        positionAbsolute:
+          x: 380
+          y: 0
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: LLM_健康判断
+          type: llm
+          selected: false
+          model:
+            completion_params:
+              max_tokens: 1500
+              temperature: 0.6
+              top_p: 1
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: sys7030
+              role: system
+              text: "你判断用户上传的内容是否为健康/医疗/体检相关。看图片(若有)和文本。\n输出严格JSON,不要markdown:\n{\"is_health\": true或false, \"summary\": \"若是健康报告则提取关键指标/异常摘要;若非健康则一句话说明原因\"}\n判定为健康的:体检单/化验单/影像报告/症状描述/健康咨询。非健康:风景照/无关截图/闲聊无健康信息。"
+            - id: user7030
+              role: user
+              text: "语言:{{#7002.language#}}\n用户输入:{{#7002.query_text#}}\n(若上传了图片请结合图片判断)"
+          vision:
+            enabled: true
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+          context:
+            enabled: false
+            variable_selector: []
+        height: 140
+        id: '7030'
+        position:
+          x: 640
+          y: -160
+        positionAbsolute:
+          x: 640
+          y: -160
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: code_解析健康
+          type: code
+          selected: false
+          code: "import json, re\ndef main(text: str) -> dict:\n    t = text or ''\n    is_health = False\n    summary = ''\n    m = re.search(r'\\{.*\\}', t, re.DOTALL)\n    if m:\n        try:\n            d = json.loads(m.group(0))\n            is_health = bool(d.get('is_health', False))\n            summary = str(d.get('summary', ''))\n        except Exception:\n            is_health = 'true' in t.lower() and 'false' not in t.lower()\n            summary = t[:200]\n    else:\n        is_health = 'true' in t.lower() and 'false' not in t.lower()\n        summary = t[:200]\n    return {'is_health': is_health, 'report_summary': summary}\n"
+          code_language: python3
+          outputs:
+            is_health:
+              children:
+              type: boolean
+            report_summary:
+              children:
+              type: string
+          variables:
+            - value_selector:
+                - '7030'
+                - text
+              variable: text
+        height: 120
+        id: 7030b
+        position:
+          x: 920
+          y: -160
+        positionAbsolute:
+          x: 920
+          y: -160
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: if_健康
+          type: if-else
+          selected: false
+          cases:
+            - case_id: healthy
+              logical_operator: and
+              conditions:
+                - comparison_operator: is
+                  id: c_h_0
+                  value: 'true'
+                  varType: boolean
+                  variable_selector:
+                    - 7030b
+                    - is_health
+            - case_id: unhealthy
+              logical_operator: and
+              conditions:
+                - comparison_operator: is
+                  id: c_uh_0
+                  value: 'false'
+                  varType: boolean
+                  variable_selector:
+                    - 7030b
+                    - is_health
+        height: 118
+        id: '7031'
+        position:
+          x: 1200
+          y: -160
+        positionAbsolute:
+          x: 1200
+          y: -160
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: Answer_委婉拒绝
+          type: answer
+          selected: false
+          answer: 您上传的内容似乎不包含健康检测相关的信息哦。为了给您专业的建议，请重新上传您的体检/化验报告，或直接描述您的身体感受和症状。
+          variables: []
+        height: 89
+        id: '7032'
+        position:
+          x: 1480
+          y: -60
+        positionAbsolute:
+          x: 1480
+          y: -60
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: LLM_报告解读问诊
+          type: llm
+          selected: false
+          model: &id001
+            completion_params:
+              max_tokens: 2000
+              temperature: 0.6
+            mode: chat
+            name: deepseek-reasoner
+            provider: langgenius/deepseek/deepseek
+          memory: &id002
+            window:
+              enabled: true
+              size: 10
+          prompt_template:
+            - id: sys7033
+              role: system
+              text: "# Role\n你是资深、权威且充满人文关怀的「健康管理专家与严选AI导游」,具备全科医生医学常识,善于倾听共情。\n# 本轮任务(第1轮:破冰与报告解读)\n基于用户上传的报告实际内容(或口述症状)提出针对性问题,了解身体感受。通俗解读关键指标/异常。\n# 强制约束\n- 绝对禁止输出商品推荐,JSON块的recommendations字段必须省略,只保留suggestions\n- 不机械索要数据,用关切口吻从常见症状切入\n- 不夸大病情,必要时提醒就医\n- 语言:{{#7002.language#}} (zh=简体中文, en=English)\n# 输出格式\n第一部分:关怀话术+报告解读+提问\n第二部分:最末尾JSON块:\n```json\n{\"suggestions\":[\"快捷回复1\",\"快捷回复2\"],\"warnings\":[\"提醒事项\"],\"metrics\":[{\"name\":\"血清钙\",\"value\":\"2.10 mmol/L\",\"status\":\"偏低\"}]}\n```\n(严禁recommendations字段;status可为正常/偏高/偏低/异常)"
+            - id: user7033
+              role: user
+              text: "【健康判断摘要】{{#7030b.report_summary#}}\n【用户输入】{{#7002.query_text#}}"
+          context:
+            enabled: false
+            variable_selector: []
+        height: 140
+        id: '7033'
+        position:
+          x: 1480
+          y: -220
+        positionAbsolute:
+          x: 1480
+          y: -220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: Answer_第1轮
+          type: answer
+          selected: false
+          answer: '{{#7033.text#}}'
+          variables:
+            - value_selector:
+                - '7033'
+                - text
+              variable: text
+        height: 89
+        id: '7034'
+        position:
+          x: 1820
+          y: -220
+        positionAbsolute:
+          x: 1820
+          y: -220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: if_到推荐轮
+          type: if-else
+          selected: false
+          cases:
+            - case_id: recommend
+              logical_operator: and
+              conditions:
+                - comparison_operator: is
+                  id: c_r_0
+                  value: recommend
+                  varType: string
+                  variable_selector:
+                    - '7020'
+                    - round_stage
+            - case_id: probe
+              logical_operator: and
+              conditions:
+                - comparison_operator: is
+                  id: c_p_0
+                  value: probe
+                  varType: string
+                  variable_selector:
+                    - '7020'
+                    - round_stage
+        height: 118
+        id: '7040'
+        position:
+          x: 640
+          y: 200
+        positionAbsolute:
+          x: 640
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: LLM_问诊
+          type: llm
+          selected: false
+          model: *id001
+          memory: *id002
+          prompt_template:
+            - id: sys7041
+              role: system
+              text: "# Role\n你是资深、充满人文关怀的「健康管理专家与严选AI导游」。\n# 本轮任务(第2-4轮:互动分析与根源探究)\n结合前几轮沟通与报告内容,分析病理根源(作息/代谢/免疫等),继续通过问题(饮食/作息/运动)完善用户画像。\n# 强制约束\n- 绝对禁止商品推荐,JSON省略recommendations,只保留suggestions\n- 高情商共情,不机械索要数据\n- 不夸大病情,提醒就医\n- 语言:{{#7002.language#}}\n# 输出格式\n第一部分:根源分析+提问\n第二部分:末尾JSON:\n```json\n{\"suggestions\":[...],\"warnings\":[...],\"metrics\":[...]}\n```\n(严禁recommendations)"
+            - id: user7041
+              role: user
+              text: '{{#7002.query_text#}}'
+          context:
+            enabled: false
+            variable_selector: []
+        height: 140
+        id: '7041'
+        position:
+          x: 920
+          y: 280
+        positionAbsolute:
+          x: 920
+          y: 280
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: Answer_问诊
+          type: answer
+          selected: false
+          answer: '{{#7041.text#}}'
+          variables:
+            - value_selector:
+                - '7041'
+                - text
+              variable: text
+        height: 89
+        id: '7042'
+        position:
+          x: 1260
+          y: 280
+        positionAbsolute:
+          x: 1260
+          y: 280
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: KB_商品检索
+          type: knowledge-retrieval
+          selected: false
+          dataset_ids:
+            - DATASET_PRODUCT_ID_PLACEHOLDER
+          desc: 从健康严选商品库检索与用户需求匹配的商品
+          multiple_retrieval_config:
+            reranking_enable: true
+            reranking_mode: reranking_model
+            reranking_model:
+              model: qwen3-rerank
+              provider: langgenius/tongyi/tongyi
+            score_threshold: 0.3
+            top_k: 3
+            weights:
+          query_attachment_selector: []
+          query_variable_selector:
+            - '7002'
+            - query_text
+          retrieval_mode: multiple
+        height: 134
+        id: '7050'
+        position:
+          x: 920
+          y: 440
+        positionAbsolute:
+          x: 920
+          y: 440
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: LLM_推荐
+          type: llm
+          selected: false
+          model: *id001
+          memory: *id002
+          prompt_template:
+            - id: sys7051
+              role: system
+              text: "# Role\n你是资深「健康管理专家与严选AI导游」。\n# 本轮任务(第5轮及以后:综合总结与严选推荐)\n对用户健康状况做综合性总结,并从下方知识库检索结果中精准匹配推荐最适合的商品。\n# 强制约束\n- 只推荐【知识库检索结果】中的真实商品,绝不编造商品ID\n- 没有合适商品则委婉告知\n- 不夸大病情,提醒就医\n- 语言:{{#7002.language#}}\n# 输出格式\n第一部分:健康综合总结+商品推荐理由\n第二部分:末尾JSON:\n```json\n{\"recommendations\":[{\"product_id\":\"商品ID\",\"reason\":\"匹配理由\"}],\"suggestions\":[...],\"warnings\":[...]}\n```\n(product_id必须来自知识库检索结果)"
+            - id: user7051
+              role: user
+              text: "【用户输入】{{#7002.query_text#}}\n\n请结合知识库检索结果为我推荐。"
+          context:
+            enabled: true
+            variable_selector:
+              - '7050'
+              - result
+          vision:
+            enabled: false
+            configs:
+              detail: low
+              variable_selector:
+                - sys
+                - files
+        height: 140
+        id: '7051'
+        position:
+          x: 1260
+          y: 440
+        positionAbsolute:
+          x: 1260
+          y: 440
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          title: Answer_推荐
+          type: answer
+          selected: false
+          answer: '{{#7051.text#}}'
+          variables:
+            - value_selector:
+                - '7051'
+                - text
+              variable: text
+        height: 89
+        id: '7052'
+        position:
+          x: 1600
+          y: 440
+        positionAbsolute:
+          x: 1600
+          y: 440
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.5
+      maxZoom: 1
+      minZoom: 0.2
+  rag_pipeline_variables: []
