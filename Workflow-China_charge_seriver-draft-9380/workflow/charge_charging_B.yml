@@ -2155,7 +2155,7 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "def main(mokuai: str, caozuomiaoshu: str, huanjing: str, leixing: str, conversation_id: str) -> dict:\n    import json\n    fields = {}\n    if mokuai:\n        fields[\"模块/功能点\"] = mokuai[:100]\n    if caozuomiaoshu:\n        fields[\"操作描述\"] = caozuomiaoshu[:2000]\n    if huanjing and huanjing in (\"后台\", \"管家端\", \"用户端\"):\n        fields[\"环境\"] = huanjing\n    fields[\"类型\"] = (leixing or \"bug\")[:10]\n    fields[\"问题状态\"] = \"问题未查阅\"\n    fields[\"产品备注\"] = (caozuomiaoshu or \"\")[:500]\n    body = {\"fields\": fields}\n    if conversation_id:\n        body[\"conversation_id\"] = conversation_id\n    return {\"body_json\": json.dumps(body, ensure_ascii=False)}"
+        code: "def main(mokuai: str, caozuomiaoshu: str, huanjing: str, leixing: str, conversation_id: str) -> dict:\n    import json\n    fields = {}\n    if mokuai:\n        fields[\"模块/功能点\"] = mokuai[:100]\n    if caozuomiaoshu:\n        fields[\"操作描述\"] = caozuomiaoshu[:2000]\n    if huanjing and huanjing in (\"后台\", \"管家端\", \"用户端\"):\n        fields[\"环境\"] = huanjing\n    fields[\"类型\"] = (leixing or \"bug\")[:10]\n    fields[\"问题状态\"] = \"问题未查阅\"\n    body = {\"fields\": fields}\n    if conversation_id:\n        body[\"conversation_id\"] = conversation_id\n    return {\"body_json\": json.dumps(body, ensure_ascii=False)}"
         code_language: python3
         outputs:
           body_json:
@@ -3249,7 +3249,7 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "def main(record_id: str, feedback_zh: str, mokuai: str, huanjing: str, leixing: str) -> dict:\n    import json\n    fields = {}\n    if mokuai:\n        fields[\"模块/功能点\"] = mokuai[:100]\n    if feedback_zh:\n        fields[\"操作描述\"] = feedback_zh[:2000]\n        fields[\"产品备注\"] = feedback_zh[:500]\n    if huanjing and huanjing in (\"后台\", \"管家端\", \"用户端\"):\n        fields[\"环境\"] = huanjing\n    fields[\"类型\"] = (leixing or \"bug\")[:10]\n    return {\"body_json\": json.dumps({\"record_id\": record_id, \"fields\": fields}, ensure_ascii=False)}"
+        code: "def main(record_id: str, feedback_zh: str, mokuai: str, huanjing: str, leixing: str) -> dict:\n    import json\n    fields = {}\n    if mokuai:\n        fields[\"模块/功能点\"] = mokuai[:100]\n    if feedback_zh:\n        fields[\"操作描述\"] = feedback_zh[:2000]\n    if huanjing and huanjing in (\"后台\", \"管家端\", \"用户端\"):\n        fields[\"环境\"] = huanjing\n    fields[\"类型\"] = (leixing or \"bug\")[:10]\n    return {\"body_json\": json.dumps({\"record_id\": record_id, \"fields\": fields}, ensure_ascii=False)}"
         code_language: python3
         outputs:
           body_json:
