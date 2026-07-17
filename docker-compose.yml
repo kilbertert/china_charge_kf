@@ -20,6 +20,10 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_BASE_PATH: /chat/
+        VITE_API_BASE: /chat
+        VITE_BACKEND_PORT: "8012"
     container_name: china-charge-frontend
     depends_on:
       backend-dify:

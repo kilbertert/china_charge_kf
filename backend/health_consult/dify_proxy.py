@@ -50,9 +50,34 @@ def get_dify_client() -> DifyClient:
 
 
 # ── 文件上传辅助 ───────────────────────────────────────────────
-async def _upload_files(client: DifyClient, files: list[Any]) -> list[str]:
-    """上传多个文件到 Dify,返回 upload_file_id 列表。"""
-    upload_ids: list[str] = []
+def _dify_file_type(content_type: str, filename: str) -> str:
+    """根据 MIME/文件名映射 Dify file type (image/document/audio/video)。
+
+    Dify file_ref 的 type 决定下游节点路由: image->vision, document->文档解析/RAG。
+    错配(如 PDF 标 image)会导致 vision 节点处理失败。未知二进制兜底 document。
+    """
+    ct = (content_type or "").lower()
+    name = (filename or "").lower()
+    if ct.startswith("image/"):
+        return "image"
+    if ct.startswith("audio/"):
+        return "audio"
+    if ct.startswith("video/"):
+        return "video"
+    if ct.startswith("application/pdf") or name.endswith(".pdf"):
+        return "document"
+    if "word" in ct or name.endswith((".doc", ".docx")):
+        return "document"
+    if "sheet" in ct or name.endswith((".xls", ".xlsx", ".csv")):
+        return "document"
+    if ct.startswith("text/") or name.endswith((".txt", ".md")):
+        return "document"
+    return "document"
+
+
+async def _upload_files(client: DifyClient, files: list[Any]) -> list[tuple[str, str]]:
+    """上传多个文件到 Dify,返回 (upload_file_id, dify_file_type) 列表。"""
+    uploaded: list[tuple[str, str]] = []
     for f in files:
         try:
             content = await f.read()
@@ -61,17 +86,15 @@ async def _upload_files(client: DifyClient, files: list[Any]) -> list[str]:
             continue
         if not content:
             continue
+        ct = f.content_type or "application/octet-stream"
+        fname = f.filename or "file"
         try:
-            fid = await client.upload_file(
-                filename=f.filename or "file",
-                content=content,
-                content_type=f.content_type or "application/octet-stream",
-            )
-            upload_ids.append(fid)
+            fid = await client.upload_file(filename=fname, content=content, content_type=ct)
+            uploaded.append((fid, _dify_file_type(ct, fname)))
         except DifyError as e:
             log.warning("Dify upload_file failed: %s", e)
             continue
-    return upload_ids
+    return uploaded
 
 
 # ── 主入口 ────────────────────────────────────────────────────
@@ -93,9 +116,9 @@ async def chat_with_dify(
         raise DifyProxyError("DIFY_API_KEY not configured")
 
     client = get_dify_client()
-    upload_ids: list[str] = []
+    uploaded: list[tuple[str, str]] = []
     if files:
-        upload_ids = await _upload_files(client, files)
+        uploaded = await _upload_files(client, files)
 
     # 组装 workflow inputs
     answers_str = json.dumps(answers or {}, ensure_ascii=False)
@@ -106,9 +129,9 @@ async def chat_with_dify(
     }
     if session_id:
         inputs[settings.dify_input_session_id] = session_id
-    if upload_ids:
+    if uploaded:
         inputs[settings.dify_input_image] = [
-            client.file_ref(uid, "image") for uid in upload_ids
+            client.file_ref(uid, ftype) for uid, ftype in uploaded
         ]
 
     try:

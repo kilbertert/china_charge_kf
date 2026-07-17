@@ -157,6 +157,21 @@ export const BONE_DENSITY_SOLUTIONS: Record<string, Solution> = {
 
 // ─── 场景二(腿疼)6 种方案 ────────────────────────────────
 export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
+  urgent: {
+    id: 'urgent_v1',
+    scene: 'symptom',
+    tag: 'urgent',
+    title: '紧急症状 - 需立即就医',
+    riskLevel: 'urgent',
+    department: '急诊 / 血管外科 / 骨科',
+    oneLineConclusion: '您的症状可能提示需要紧急评估,请优先就医,不要拖延。',
+    lifestyle: [],
+    nutrition: [],
+    alert: [
+      { icon: '🚨', title: '尽快就医', content: '出现一侧小腿肿胀+胸闷气短,警惕肺栓塞;胸痛/呼吸困难/不能站立等危险信号请立即急诊或对应专科。' },
+      { icon: '🚑', title: '呼叫帮助', content: '如症状突发且剧烈,请拨打 120 或由家属陪同就近急诊,避免自行驾车。' },
+    ],
+  },
   muscle_strain: {
     id: 'muscle_strain_v1',
     scene: 'symptom',

@@ -120,8 +120,13 @@ def detect_urgent(text: str) -> bool:
 
 
 def scene_to_risk(scene: str, text: str = "") -> str:
-    """根据场景与文本给出默认风险等级。"""
-    if scene == SCENE_SYMPTOM and detect_urgent(text):
+    """根据场景与文本给出默认风险等级。
+
+    危险信号优先于任何场景:命中 detect_urgent 即 urgent,避免"胸痛呼吸困难+
+    骨密度T值"被 report 关键词抢匹配后归 medium 而错过紧急提示。
+    """
+    # 危险信号全局闸门,优先于场景分流
+    if detect_urgent(text):
         return RISK_URGENT
     if scene == SCENE_REPORT:
         return RISK_MEDIUM
@@ -139,6 +144,24 @@ def build_fallback_payload(scene: str, risk_level: str, text: str = "") -> dict:
         BONE_DENSITY_QUESTIONNAIRE,
     )
 
+    # 危险信号优先于任何场景:命中即给紧急兜底(避免 report 抢匹配错过 urgent)
+    if risk_level == RISK_URGENT:
+        return {
+            "symptom": "leg_pain",
+            "dangerSignals": [
+                {"title": "已检测到危险信号", "content": "您的描述包含可能需要紧急评估的症状。"}
+            ],
+            "riskLevel": RISK_URGENT,
+            "department": "急诊 / 血管外科 / 骨科",
+            "oneLineConclusion": "您的症状可能提示需要尽快就医,请优先评估。",
+            "alert": [
+                {"icon": "🚨", "title": "尽快就医", "content": "出现一侧小腿肿胀+胸闷气短,警惕肺栓塞;其他危险信号请到急诊或对应专科。"},
+            ],
+            "lifestyle": [],
+            "nutrition": [],
+            "solutionRef": "urgent_v1",
+        }
+
     if scene == SCENE_CHITCHAT:
         # 问候 / 闲聊:不进入问诊,给一段友好的引导语
         return {
@@ -149,24 +172,7 @@ def build_fallback_payload(scene: str, risk_level: str, text: str = "") -> dict:
         }
 
     if scene == SCENE_SYMPTOM:
-        # 危险信号命中 → 直接给 urgent 兜底 payload
-        if risk_level == RISK_URGENT:
-            return {
-                "symptom": "leg_pain",
-                "dangerSignals": [
-                    {"title": "已检测到危险信号", "content": "您的描述包含可能需要紧急评估的症状。"}
-                ],
-                "riskLevel": RISK_URGENT,
-                "department": "急诊 / 血管外科 / 骨科",
-                "oneLineConclusion": "您的症状可能提示需要尽快就医,请优先评估。",
-                "alert": [
-                    {"icon": "🚨", "title": "尽快就医", "content": "出现一侧小腿肿胀+胸闷气短,警惕肺栓塞;其他危险信号请到急诊或对应专科。"},
-                ],
-                "lifestyle": [],
-                "nutrition": [],
-                "solutionRef": "urgent_v1",
-            }
-        # 否则给一份"先填危险信号筛查"的初始问题
+        # 非紧急(已过全局 urgent 闸门):给危险信号筛查初始问题
         danger_questions = [q for q in LEG_PAIN_QUESTIONNAIRE["questions"] if q["tag"] == "urgent"]
         return {
             "symptom": "leg_pain",

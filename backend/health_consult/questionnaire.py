@@ -432,7 +432,7 @@ def _classify_leg_pain(answers: dict[str, str]) -> tuple[str, str, str]:
         if ans is None:
             continue
         for opt in q["options"]:
-            if opt["key"] == ans and opt["weight"] >= 3:
+            if opt["key"] == ans and opt["weight"] >= 2:
                 return ("symptom", "vascular_risk", "urgent")
 
     location = answers.get("location", "")

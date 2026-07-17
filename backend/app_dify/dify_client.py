@@ -159,6 +159,47 @@ class DifyClient:
         return resp.json()
 
     # ------------------------------------------------------------------
+    # 3. Workflow execution (并列后端 health_consult / charge_consult 用)
+    # ------------------------------------------------------------------
+    async def run_workflow(
+        self,
+        *,
+        inputs: dict[str, Any] | None = None,
+        response_mode: str = "blocking",
+    ) -> dict[str, Any]:
+        """运行 Workflow app(非 chatflow)。
+
+        供 health_consult / charge_consult 等仍使用 workflow 类型 Dify app 的并列
+        后端调用。H5 主链路用 run_chatflow, 本方法为向后兼容保留(不强行把并列
+        后端迁 chatflow, 因其 Dify app 仍是 workflow 类型)。
+
+        Endpoint:  POST {api_base}/workflows/run
+        Body:      { inputs, response_mode, user }
+        Response:  blocking -> { task_id, workflow_run_id,
+                    data: { id, workflow_id, status, outputs, error } }
+
+        与 chatflow 差异: 无 query/conversation_id; 用户文本与文件均放 inputs;
+        响应嵌套在 data.outputs (由各 dify_proxy.parse_dify_output 归一化)。
+        """
+        url = f"{self.api_base.rstrip('/')}/workflows/run"
+        payload: dict[str, Any] = {
+            "inputs": inputs or {},
+            "response_mode": response_mode,
+            "user": self.end_user,
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), verify=False) as client:
+            resp = await client.post(
+                url,
+                headers=self._headers(content_type="application/json"),
+                json=payload,
+            )
+
+        if resp.status_code >= 400:
+            raise DifyError(f"Dify workflow HTTP error: {resp.status_code} {resp.text}")
+
+        return resp.json()
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
     @staticmethod
