@@ -1,0 +1,12 @@
+# 项目根 .dockerignore (build context 为项目根的 service: frontend / backend-health-consult)
+**/node_modules
+**/dist
+**/__pycache__
+*.pyc
+.git
+.gitignore
+lkf/
+**/.env
+**/.env.*
+**/*.md
+**/.claude

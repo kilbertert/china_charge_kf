@@ -13,6 +13,8 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from .compliance_loader import get_config
+
 
 SCENE_REPORT = "report"
 SCENE_SYMPTOM = "symptom"
@@ -25,48 +27,21 @@ RISK_HIGH = "high"
 RISK_URGENT = "urgent"
 
 
-# ── 关键词集合 ────────────────────────────────────────────────
-# chitchat:问候 / 闲聊 / 试探 — 必须最先匹配
-_CHITCHAT_KEYWORDS = (
-    "你好", "您好", "hi", "hello", "hey", "嗨", "哈喽",
-    "在吗", "在不", "在么",
-    "你是谁", "你能做什么", "你是什么", "介绍一下", "自我介绍",
-    "谢谢", "再见", "拜拜", "感谢",
-    "嗯", "哦", "好的",
-)
+# ── 合规规则 (单一事实源 shared/compliance.yaml) ────────────
+_cfg = get_config()
 
-# report:骨密度 / DXA 报告
-_REPORT_KEYWORDS = (
-    "骨密度", "T值", "T 值", "DXA", "BMD", "腰椎", "股骨颈", "全髋",
-    "骨量减少", "骨质疏松", "骨量下降",
-)
+# 关键词集合 (chitchat 优先匹配, 避免"你好"被误判症状)
+_CHITCHAT_KEYWORDS = _cfg.keywords("chitchat")
+_REPORT_KEYWORDS = _cfg.keywords("report")
+_SYMPTOM_KEYWORDS = _cfg.keywords("symptom")
+_PRODUCT_KEYWORDS = _cfg.keywords("product")
 
-# symptom:疼痛 / 不适
-_SYMPTOM_KEYWORDS = (
-    "疼", "痛", "难受", "不舒服", "睡不着", "累", "肿胀", "麻",
-    "酸", "胀", "抽筋", "不能走", "走不动", "胸闷", "气短",
-    "呼吸困难", "麻木", "无力", "跛",
-)
+# 危险信号词 - 命中任一即判定 urgent
+_URGENT_PHRASES = _cfg.urgent_phrases
 
-# product:产品 / 营养
-_PRODUCT_KEYWORDS = (
-    "能不能吃", "适不适合", "保健食品", "营养品", "补钙", "维生素D",
-    "氨糖", "软骨素", "蛋白粉", "推荐", "选哪个",
-)
-
-
-# 危险信号词 — 命中任一即判定 urgent
-_URGENT_PHRASES = (
-    "胸痛", "呼吸困难", "一侧小腿肿胀", "不能走路", "不能站立",
-    "麻木无力", "麻木", "偏瘫", "晕厥", "咯血",
-    "突然发生", "剧烈疼痛", "明显肿胀",
-)
-
-
-# T 值数字识别(腰椎 / 股骨 / 全髋)
-_T_VALUE_RE = re.compile(r"T\s*值\s*[-−]?\s*\d", re.IGNORECASE)
-# "XX岁,女/男"
-_AGE_GENDER_RE = re.compile(r"\d{1,3}\s*岁\s*[，,]?\s*(?:女|男)", re.IGNORECASE)
+# T 值数字识别(腰椎 / 股骨 / 全髋) / "XX岁,女/男"
+_T_VALUE_RE = re.compile(_cfg.regex_pattern("t_value"), re.IGNORECASE)
+_AGE_GENDER_RE = re.compile(_cfg.regex_pattern("age_gender"), re.IGNORECASE)
 
 
 def classify_scene(text: str) -> tuple[str, float]:
@@ -128,13 +103,8 @@ def scene_to_risk(scene: str, text: str = "") -> str:
     # 危险信号全局闸门,优先于场景分流
     if detect_urgent(text):
         return RISK_URGENT
-    if scene == SCENE_REPORT:
-        return RISK_MEDIUM
-    if scene == SCENE_PRODUCT:
-        return RISK_LOW
-    if scene == SCENE_CHITCHAT:
-        return RISK_LOW
-    return RISK_LOW
+    # scene->default risk 从 compliance.yaml risk_mapping 读
+    return _cfg.risk_for_scene(scene)
 
 
 def build_fallback_payload(scene: str, risk_level: str, text: str = "") -> dict:
@@ -145,20 +115,22 @@ def build_fallback_payload(scene: str, risk_level: str, text: str = "") -> dict:
     )
 
     # 危险信号优先于任何场景:命中即给紧急兜底(避免 report 抢匹配错过 urgent)
+    # urgent 方案字段从 compliance.yaml 读 (消除硬编码, 与前端 urgent_v1 一致)
     if risk_level == RISK_URGENT:
+        sol = _cfg.get_solution("symptom", "urgent") or {}
         return {
             "symptom": "leg_pain",
             "dangerSignals": [
                 {"title": "已检测到危险信号", "content": "您的描述包含可能需要紧急评估的症状。"}
             ],
             "riskLevel": RISK_URGENT,
-            "department": "急诊 / 血管外科 / 骨科",
-            "oneLineConclusion": "您的症状可能提示需要尽快就医,请优先评估。",
-            "alert": [
+            "department": sol.get("department", "急诊 / 血管外科 / 骨科"),
+            "oneLineConclusion": sol.get("oneLineConclusion", "您的症状可能提示需要尽快就医,请优先评估。"),
+            "alert": sol.get("alert") or [
                 {"icon": "🚨", "title": "尽快就医", "content": "出现一侧小腿肿胀+胸闷气短,警惕肺栓塞;其他危险信号请到急诊或对应专科。"},
             ],
-            "lifestyle": [],
-            "nutrition": [],
+            "lifestyle": sol.get("lifestyle") or [],
+            "nutrition": sol.get("nutrition") or [],
             "solutionRef": "urgent_v1",
         }
 

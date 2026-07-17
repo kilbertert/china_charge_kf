@@ -19,7 +19,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: frontend/Dockerfile
       args:
         VITE_BASE_PATH: /chat/
         VITE_API_BASE: /chat
@@ -60,8 +61,8 @@ services:
     env_file:
       - ./backend/.env.dify-consult
     build:
-      context: ./backend
-      dockerfile: health_consult/Dockerfile
+      context: .
+      dockerfile: backend/health_consult/Dockerfile
     container_name: china-charge-backend-health-consult
     environment:
       PORT: 8013
