@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from typing import Any, Optional
 
@@ -122,6 +123,7 @@ class ChatflowRouter:
     """
 
     _MAX_ROUTES = 3  # 防 A<->B ping-pong 改投上限
+    _SESSION_TTL = 1800  # 会话状态 TTL (秒); 超时未活动视为新会话, 对齐 wecom 30min
 
     def __init__(self, api_base: str, key_a: str, key_b: str, end_user: str) -> None:
         if not key_a:
@@ -131,7 +133,7 @@ class ChatflowRouter:
         self._client_a = DifyClient(api_base, key_a, end_user)
         self._dual = bool(key_b)
         self._client_b = DifyClient(api_base, key_b, end_user) if self._dual else None
-        self._store: dict[str, dict] = {}
+        self._store: dict[str, dict] = {}  # {sid: {"state": {...}, "ts": monotonic}}
         self._lock = asyncio.Lock()
 
     def _client_for(self, app: str) -> DifyClient:
@@ -213,7 +215,12 @@ class ChatflowRouter:
             inputs["input_language"] = lang
 
         async with self._lock:
-            state = dict(self._store.get(session_id) or {"active": "A", "conv_a": "", "conv_b": ""})
+            entry = self._store.get(session_id)
+            now = time.monotonic()
+            # 超时未活动 -> 视为新会话: 重置 active/conv, 避免陈旧 conv_id 误用
+            if entry and (now - entry.get("ts", 0.0)) > self._SESSION_TTL:
+                entry = None
+            state = dict((entry or {}).get("state") or {"active": "A", "conv_a": "", "conv_b": ""})
 
         active = state.get("active", "A")
         client = self._client_for(active)
@@ -257,7 +264,12 @@ class ChatflowRouter:
         answer = strip_sys_markers(answer)
 
         async with self._lock:
-            self._store[session_id] = state
+            self._store[session_id] = {"state": state, "ts": time.monotonic()}
+            # lazy 清理过期项, 防长期累积 (阈值触发扫描, 避免每次请求开销)
+            if len(self._store) > 512:
+                cutoff = time.monotonic() - self._SESSION_TTL
+                for k in [k for k, v in self._store.items() if v.get("ts", 0.0) <= cutoff]:
+                    self._store.pop(k, None)
 
         log.info(
             "[ROUTER] session=%s active=%s conv_a=%s conv_b=%s answer_len=%d",
