@@ -59,7 +59,7 @@ const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', 
 export function SuggestionScreen({ solution, onBack }: Props) {
   // 症状场景合规: lifestyle/nutrition 为空(边界禁止处置意见/营养处方), 仅渲染非空段。
   // 序号按实际渲染顺序动态生成, 避免 symptom 页出现跳号(无 ①② 直接 ③④)。
-  const sections: { title: string; tone: 'green' | 'blue' | 'red' | 'gray'; items: SolutionSection[] }[] = [
+  const allSections: { title: string; tone: 'green' | 'blue' | 'red' | 'gray'; items: SolutionSection[] }[] = [
     { title: '生活方式干预', tone: 'green', items: solution.lifestyle },
     { title: '补充特定营养', tone: 'blue', items: solution.nutrition },
     { title: '严重情况请及时就医', tone: 'red', items: solution.alert },
@@ -79,7 +79,8 @@ export function SuggestionScreen({ solution, onBack }: Props) {
         },
       ],
     },
-  ].filter((s) => s.items.length > 0)
+  ]
+  const sections = allSections.filter((s) => s.items.length > 0)
 
   return (
     <div className="hc-screen hc-suggestion-screen">
