@@ -182,14 +182,13 @@ async def chat_with_dify(
     #     又缺 red_swollen_hot/calf_swelling/fever_chills -> Dify 返 symptom/medium。
     #     detect_urgent_answers(answers) 答案兜底。
     # 安全并集: urgent = (Dify判urgent) OR (文本关键词) OR (答案危险信号)。绝不漏。
-    if risk_level != RISK_URGENT and (
-        detect_urgent(text or "") or detect_urgent_answers(answers)
-    ):
+    text_urgent = detect_urgent(text or "")
+    answers_urgent = detect_urgent_answers(answers)
+    if risk_level != RISK_URGENT and (text_urgent or answers_urgent):
         log.warning(
-            "urgent gate override: Dify scene=%s risk=%s | text_urgent=%s answers_urgent=%s | text=%r",
+            "urgent gate override: Dify scene=%s risk=%s | text_urgent=%s answers_urgent=%s",
             scene, risk_level,
-            detect_urgent(text or ""), detect_urgent_answers(answers),
-            (text or "")[:80],
+            text_urgent, answers_urgent,
         )
         scene = SCENE_SYMPTOM
         risk_level = RISK_URGENT

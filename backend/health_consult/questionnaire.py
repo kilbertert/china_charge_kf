@@ -101,7 +101,7 @@ def _classify_bone_density(answers: dict[str, str]) -> tuple[str, str, str]:
 
 def _classify_leg_pain(answers: dict[str, str]) -> tuple[str, str, str]:
     """腿疼答案归类:
-    - A 表(危险信号)任一命中 weight>=3 → urgent(直接血管/急诊路径)
+    - A 表(危险信号)任一命中配置阈值(当前 weight>=2) → urgent
     - 否则按 B+C 表答案匹配 6 种类型
     """
     urgent_questions = [q for q in LEG_PAIN_QUESTIONNAIRE["questions"] if q["tag"] == "urgent"]
