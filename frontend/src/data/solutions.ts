@@ -331,36 +331,9 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "title": "肌肉劳损/运动过度型",
     "riskLevel": "low",
     "department": "康复科 / 骨科",
-    "oneLineConclusion": "您的情况更像是肌肉劳损或运动后疲劳相关,先休息和拉伸,一般 1-2 周可缓解。",
-    "lifestyle": [
-      {
-        "icon": "🛌",
-        "title": "适当休息",
-        "content": "暂停高强度运动 3-7 天,疼痛明显时减少负重。"
-      },
-      {
-        "icon": "🧘",
-        "title": "拉伸放松",
-        "content": "疼痛缓解后做股四头肌、腘绳肌、小腿拉伸,每次 15-30 秒。"
-      },
-      {
-        "icon": "🔥",
-        "title": "热敷",
-        "content": "慢性酸痛可热敷 15-20 分钟,促进血液循环。"
-      }
-    ],
-    "nutrition": [
-      {
-        "icon": "🥚",
-        "title": "优质蛋白",
-        "content": "帮助肌肉修复,鸡蛋、鱼禽肉、豆制品。"
-      },
-      {
-        "icon": "💧",
-        "title": "充足水分",
-        "content": "每日 1500-2000ml,运动后适量补充电解质。"
-      }
-    ],
+    "oneLineConclusion": "您的情况更像是肌肉劳损或运动后疲劳相关,建议就医明确诊断后再制定方案。",
+    "lifestyle": [],
+    "nutrition": [],
     "alert": [
       {
         "icon": "💡",
@@ -376,46 +349,9 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "title": "膝关节/关节退变型",
     "riskLevel": "medium",
     "department": "骨科 / 康复科",
-    "oneLineConclusion": "您的情况更像是膝关节负重或退变相关,需要减负 + 肌力训练综合管理。",
-    "lifestyle": [
-      {
-        "icon": "⚠",
-        "title": "避免高负担动作",
-        "content": "暂停爬山、深蹲、长时间上下楼、跪姿。"
-      },
-      {
-        "icon": "🏊",
-        "title": "低冲击运动",
-        "content": "游泳、骑车、椭圆机、坐姿划船,保护关节。"
-      },
-      {
-        "icon": "🏋",
-        "title": "肌力训练",
-        "content": "加强股四头肌和臀肌,推荐直腿抬高、靠墙静蹲(无痛范围)。"
-      },
-      {
-        "icon": "⚖",
-        "title": "控制体重",
-        "content": "体重每减 5kg,膝关节负担减少约 20kg。"
-      }
-    ],
-    "nutrition": [
-      {
-        "icon": "🥛",
-        "title": "钙和维生素 D",
-        "content": "每日钙 800-1000mg,维生素 D 400-800IU。"
-      },
-      {
-        "icon": "🐟",
-        "title": "抗炎饮食",
-        "content": "深海鱼、橄榄油、坚果,减少甜食和加工肉。"
-      },
-      {
-        "icon": "🍗",
-        "title": "优质蛋白",
-        "content": "支持软骨修复,鸡蛋、鱼、豆制品。"
-      }
-    ],
+    "oneLineConclusion": "您的情况更像是膝关节负重或退变相关,建议骨科评估明确诊断后再制定方案。",
+    "lifestyle": [],
+    "nutrition": [],
     "alert": [
       {
         "icon": "🚨",
@@ -436,36 +372,9 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "title": "腰椎神经牵涉型",
     "riskLevel": "medium",
     "department": "骨科 / 脊柱外科 / 康复科",
-    "oneLineConclusion": "您的情况更像是腰椎相关神经受刺激,需要先明确诊断,避免久坐和错误姿势。",
-    "lifestyle": [
-      {
-        "icon": "🪑",
-        "title": "避免久坐",
-        "content": "每 30-40 分钟起身活动,坐姿保持腰部有支撑。"
-      },
-      {
-        "icon": "🧘",
-        "title": "核心训练",
-        "content": "平板支撑、桥式、鸟狗式,增强腰腹肌力。"
-      },
-      {
-        "icon": "🛌",
-        "title": "睡姿调整",
-        "content": "侧卧时双膝间夹枕,仰卧时膝下垫枕,减轻腰椎压力。"
-      }
-    ],
-    "nutrition": [
-      {
-        "icon": "🥛",
-        "title": "钙和维生素 D",
-        "content": "保护腰椎骨骼基础,每日 800-1000mg 钙。"
-      },
-      {
-        "icon": "🥦",
-        "title": "维生素 B 族",
-        "content": "全谷物、绿叶菜,帮助神经修复。"
-      }
-    ],
+    "oneLineConclusion": "您的情况更像是腰椎相关神经受刺激,建议脊柱外科明确诊断后再制定方案。",
+    "lifestyle": [],
+    "nutrition": [],
     "alert": [
       {
         "icon": "🚨",
@@ -486,51 +395,19 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "title": "尿酸/痛风炎症型",
     "riskLevel": "medium",
     "department": "风湿免疫科 / 骨科",
-    "oneLineConclusion": "您的情况可能与尿酸相关关节炎症有关,需要控制饮食 + 评估是否需要降尿酸治疗。",
-    "lifestyle": [
-      {
-        "icon": "💧",
-        "title": "多喝水",
-        "content": "每日 2000ml 以上,促进尿酸排泄。"
-      },
-      {
-        "icon": "🚶",
-        "title": "适度活动",
-        "content": "急性期卧床休息,缓解后规律低强度运动。"
-      },
-      {
-        "icon": "⚖",
-        "title": "控制体重",
-        "content": "避免快速减肥,会诱发痛风发作。"
-      }
-    ],
-    "nutrition": [
-      {
-        "icon": "🚫",
-        "title": "低嘌呤饮食",
-        "content": "避免动物内脏、海鲜汤、啤酒;适量瘦肉、豆类。"
-      },
-      {
-        "icon": "🥬",
-        "title": "多吃蔬菜",
-        "content": "深绿叶菜、樱桃(有助于降尿酸)。"
-      },
-      {
-        "icon": "🥛",
-        "title": "低脂乳制品",
-        "content": "帮助尿酸排泄。"
-      }
-    ],
+    "oneLineConclusion": "您的情况可能与尿酸相关关节炎症有关,建议风湿免疫科就诊明确诊断。",
+    "lifestyle": [],
+    "nutrition": [],
     "alert": [
       {
         "icon": "🚨",
-        "title": "建议风湿免疫科",
-        "content": "评估是否需要降尿酸药物,不要只靠饮食控制。"
+        "title": "建议风湿免疫科就诊",
+        "content": "由医生评估是否需要治疗,不要仅靠自行调理拖延。"
       },
       {
         "icon": "🚨",
-        "title": "急性发作",
-        "content": "关节红肿热痛明显时,24 小时内就诊,急性期用药效果最好。"
+        "title": "急性发作及时就诊",
+        "content": "关节红肿热痛明显时,请 24 小时内就诊。"
       }
     ]
   },
@@ -542,25 +419,8 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "riskLevel": "high",
     "department": "血管外科 / 急诊",
     "oneLineConclusion": "您的情况可能与血管相关风险有关,需要优先排除血栓和循环问题,不能拖延。",
-    "lifestyle": [
-      {
-        "icon": "🛌",
-        "title": "避免按摩",
-        "content": "小腿肿胀时不要按摩或热敷,以免血栓脱落。"
-      },
-      {
-        "icon": "🚶",
-        "title": "避免久坐久卧",
-        "content": "长途旅行时每 1-2 小时起身活动。"
-      }
-    ],
-    "nutrition": [
-      {
-        "icon": "💧",
-        "title": "充足水分",
-        "content": "降低血液粘稠度,每日 1500-2000ml。"
-      }
-    ],
+    "lifestyle": [],
+    "nutrition": [],
     "alert": [
       {
         "icon": "🚨",
@@ -571,6 +431,11 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
         "icon": "🚨",
         "title": "急诊指征",
         "content": "突然胸痛、咯血、晕厥 -> 立即急诊(120)。"
+      },
+      {
+        "icon": "⚠",
+        "title": "就医前注意",
+        "content": "小腿肿胀期间不要按摩或热敷,以免血栓脱落。"
       }
     ]
   },
@@ -582,35 +447,8 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "riskLevel": "high",
     "department": "骨科 / 骨质疏松门诊",
     "oneLineConclusion": "您的情况可能与骨质疏松或隐匿骨折相关,需要影像学确认和骨密度评估。",
-    "lifestyle": [
-      {
-        "icon": "🛡",
-        "title": "重点防跌倒",
-        "content": "居家防滑、夜间照明、外出防滑鞋。"
-      },
-      {
-        "icon": "🚶",
-        "title": "避免高风险动作",
-        "content": "不提重物、不弯腰搬物、不突然扭转。"
-      }
-    ],
-    "nutrition": [
-      {
-        "icon": "🥛",
-        "title": "钙",
-        "content": "每日 1000-1200mg,饮食+补充剂。"
-      },
-      {
-        "icon": "🐟",
-        "title": "维生素 D",
-        "content": "维持 25-OH D 在 30ng/mL 以上。"
-      },
-      {
-        "icon": "🥚",
-        "title": "优质蛋白",
-        "content": "支持骨基质,每日 1.0-1.2g/kg。"
-      }
-    ],
+    "lifestyle": [],
+    "nutrition": [],
     "alert": [
       {
         "icon": "🚨",

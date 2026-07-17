@@ -1,9 +1,20 @@
 """End-to-end test for OSS-hosted image replies.
 
-This test mocks the Dify workflow response (no real Dify API call) and
+This test mocks the Dify **chatflow** response (no real Dify API call) and
 exercises the FastAPI endpoint to confirm that the assistant's ``media[]``
 field carries the OSS image URL all the way through to the HTTP response,
 exactly the way the H5 frontend expects to receive it.
+
+After the 9d47 chatflow A/B migration, ``/api/chat`` goes through
+``ChatflowRouter`` which calls ``DifyClient.run_chatflow`` (``/chat-messages``).
+The chatflow response is flat: ``{answer, conversation_id, ...}`` with no
+``data.outputs`` nesting; ``ChatflowRouter.chat`` normalizes ``answer`` into
+``raw.data.outputs.output`` so ``response_parser`` can unpack ``{text, media}``.
+
+Mock strategy: ``router`` is built at module import with real ``DifyClient``
+instances, so patching the class *name* does not intercept calls. Instead we
+patch ``DifyClient.run_chatflow`` (the bound method) — instance method lookup
+resolves to the class, so all router clients return the fake response.
 
 The OSS URL asserted here is the row-#20 entry in ``kb-assets/KB-CHARGE-PILE.md``
 (``pc-backend-billing-template-domestic-four-wheel-1.png``). The test query
@@ -23,6 +34,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app_dify.dify_client import DifyClient
 from app_dify.main import app
 
 # Row #20 in kb-assets/MANIFEST.md / KB-CHARGE-PILE.md
@@ -32,13 +44,16 @@ EXPECTED_OSS_URL = (
 )
 
 
-def _make_fake_workflow_response(
-    text: str = "请按以下步骤设置阶梯电价：进入 PC 管理后端 → 计费模板 → 新建模板 → 选择国内四轮 → 设置峰平谷电价。",
+def _make_fake_chatflow_response(
+    text: str = "请按以下步骤设置阶梯电价：进入 PC 管理后端 -> 计费模板 -> 新建模板 -> 选择国内四轮 -> 设置峰平谷电价。",
     media: list[dict] | None = None,
 ) -> dict:
-    """Build a Dify-style workflow blocking response with a {text, media} JSON
-    payload encoded in the ``output`` variable. The response parser in
-    ``app_dify.response_parser`` unpacks this into ``ChatResponse.media``.
+    """Build a Dify chatflow (``/chat-messages``) blocking response.
+
+    The charge chatflow emits a ``{text, media}`` JSON payload encoded in the
+    ``answer`` field. ``ChatflowRouter`` moves ``answer`` into
+    ``raw.data.outputs.output``; ``response_parser`` then unpacks it into
+    ``ChatResponse.media``.
     """
     if media is None:
         media = [
@@ -50,11 +65,9 @@ def _make_fake_workflow_response(
         ]
     payload = {"text": text, "media": media}
     return {
-        "data": {
-            "outputs": {
-                "output": json.dumps(payload, ensure_ascii=False),
-            }
-        }
+        "answer": json.dumps(payload, ensure_ascii=False),
+        "conversation_id": "test-conv-oss",
+        "message_id": "test-msg-oss",
     }
 
 
@@ -66,11 +79,9 @@ def client() -> TestClient:
 def test_chat_returns_oss_media_url_for_billing_template_query(client: TestClient) -> None:
     """A query about tiered pricing must return the billing template image
     exactly as the KB-CHARGE-PILE.md describes it."""
-    fake_raw = _make_fake_workflow_response()
+    fake_raw = _make_fake_chatflow_response()
 
-    with patch("app_dify.main.DifyClient") as MockClient:
-        MockClient.return_value.run_workflow = AsyncMock(return_value=fake_raw)
-
+    with patch.object(DifyClient, "run_chatflow", AsyncMock(return_value=fake_raw)):
         resp = client.post(
             "/api/chat",
             data={"text": "如何给充电桩设置阶梯电价", "language": "中文"},
@@ -94,14 +105,12 @@ def test_chat_returns_oss_media_url_for_billing_template_query(client: TestClien
 
 def test_chat_returns_empty_media_when_payload_omits_it(client: TestClient) -> None:
     """If the workflow's payload has no media, the response.media must be []."""
-    fake_raw = _make_fake_workflow_response(
+    fake_raw = _make_fake_chatflow_response(
         text="您好，我还在学习中。",
         media=[],
     )
 
-    with patch("app_dify.main.DifyClient") as MockClient:
-        MockClient.return_value.run_workflow = AsyncMock(return_value=fake_raw)
-
+    with patch.object(DifyClient, "run_chatflow", AsyncMock(return_value=fake_raw)):
         resp = client.post(
             "/api/chat",
             data={"text": "你好", "language": "中文"},
@@ -114,16 +123,14 @@ def test_chat_returns_empty_media_when_payload_omits_it(client: TestClient) -> N
 def test_chat_strips_unsafe_media_url(client: TestClient) -> None:
     """Defense-in-depth: even if the LLM emits a ``javascript:`` URL,
     ``_normalize_media_item`` must drop it. The frontend never sees it."""
-    fake_raw = _make_fake_workflow_response(
+    fake_raw = _make_fake_chatflow_response(
         media=[
             {"type": "image", "url": "javascript:alert(1)", "description": "xss"},
             {"type": "image", "url": EXPECTED_OSS_URL, "description": "ok"},
-        ]
+        ],
     )
 
-    with patch("app_dify.main.DifyClient") as MockClient:
-        MockClient.return_value.run_workflow = AsyncMock(return_value=fake_raw)
-
+    with patch.object(DifyClient, "run_chatflow", AsyncMock(return_value=fake_raw)):
         resp = client.post(
             "/api/chat",
             data={"text": "test", "language": "中文"},

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     dify_workflow_id: str = "AI_health_consultant_v2"
     # Dify workflow 输入变量名(与工作流"开始"节点对齐)
     dify_input_text: str = "input_text"
-    dify_input_image: str = "input_img_id"
+    dify_input_image: str = "input_image"
     dify_input_answers: str = "input_answers"
     dify_input_language: str = "input_language"
     dify_input_session_id: str = "input_session_id"

@@ -24,7 +24,14 @@ if _BACKEND_ROOT not in sys.path:
 from app_dify.dify_client import DifyClient, DifyError  # noqa: E402
 
 from .config import settings  # noqa: E402
-from .scene_router import get_default_scene_response  # noqa: E402
+from .scene_router import (  # noqa: E402
+    SCENE_SYMPTOM,
+    RISK_URGENT,
+    build_fallback_payload,
+    detect_urgent,
+    detect_urgent_answers,
+    get_default_scene_response,
+)
 
 log = logging.getLogger("health_consult.dify_proxy")
 
@@ -166,6 +173,27 @@ async def chat_with_dify(
     payload = parsed.get("payload")
     if not isinstance(payload, dict):
         payload = {}
+
+    # ── 确定性全局紧急闸门 (P1-1 + 复审 P1: answers 路径) ────────
+    # 不信任 Dify 的 risk_level。两条漏 urgent 路径都用后端确定性兜底:
+    #  1. 文本路径: 场景分类器把"胸痛呼吸困难+T值-2.8"判 report(因 T 值), report
+    #     分支不查 urgent -> Dify 返 report/medium。detect_urgent(text) 关键词兜底。
+    #  2. 问卷答案路径: handleSubmitAnswers 症状场景不发文本, 工作流 URGENT_ANSWER_KEYS
+    #     又缺 red_swollen_hot/calf_swelling/fever_chills -> Dify 返 symptom/medium。
+    #     detect_urgent_answers(answers) 答案兜底。
+    # 安全并集: urgent = (Dify判urgent) OR (文本关键词) OR (答案危险信号)。绝不漏。
+    text_urgent = detect_urgent(text or "")
+    answers_urgent = detect_urgent_answers(answers)
+    if risk_level != RISK_URGENT and (text_urgent or answers_urgent):
+        log.warning(
+            "urgent gate override: Dify scene=%s risk=%s | text_urgent=%s answers_urgent=%s",
+            scene, risk_level,
+            text_urgent, answers_urgent,
+        )
+        scene = SCENE_SYMPTOM
+        risk_level = RISK_URGENT
+        payload = build_fallback_payload(SCENE_SYMPTOM, RISK_URGENT, text or "")
+        confidence = 1.0
 
     return {
         "scene": scene,

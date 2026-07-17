@@ -14,6 +14,7 @@ import re
 from typing import Optional
 
 from .compliance_loader import get_config
+from .questionnaire import LEG_PAIN_QUESTIONNAIRE
 
 
 SCENE_REPORT = "report"
@@ -38,6 +39,20 @@ _PRODUCT_KEYWORDS = _cfg.keywords("product")
 
 # 危险信号词 - 命中任一即判定 urgent
 _URGENT_PHRASES = _cfg.urgent_phrases
+
+# 问卷答案危险信号: leg_pain 量表里 tag=urgent 的问题, 其权重达到统一阈值
+# (复审 P1: 工作流 URGENT_ANSWER_KEYS 缺 red_swollen_hot/calf_swelling/fever_chills,
+#  且问卷提交时不发文本 -> 闸门须对 answers 做确定性检查)
+_URGENT_MIN_WEIGHT = _cfg.threshold("leg_pain", "urgent_min_weight", 2)
+_URGENT_ANSWER_KEYS: dict[str, set[str]] = {
+    q["id"]: {
+        o["key"]
+        for o in q["options"]
+        if o.get("weight", 0) >= _URGENT_MIN_WEIGHT
+    }
+    for q in LEG_PAIN_QUESTIONNAIRE["questions"]
+    if q.get("tag") == "urgent"
+}
 
 # T 值数字识别(腰椎 / 股骨 / 全髋) / "XX岁,女/男"
 _T_VALUE_RE = re.compile(_cfg.regex_pattern("t_value"), re.IGNORECASE)
@@ -92,6 +107,18 @@ def detect_urgent(text: str) -> bool:
         if phrase in text:
             return True
     return False
+
+
+def detect_urgent_answers(answers: dict | None) -> bool:
+    """问卷答案危险信号: 任一 urgent 问题达到统一权重阈值即 urgent。
+
+    复审 P1: 症状问卷提交时不发送文本(HealthConsultApp.handleSubmitAnswers 只在
+    report 场景带文本), 工作流 URGENT_ANSWER_KEYS 又缺 red_swollen_hot/calf_swelling/
+    fever_chills, 导致 Dify 返 symptom/medium 漏 urgent。后端用答案做确定性兜底。
+    """
+    if not isinstance(answers, dict) or not answers:
+        return False
+    return any(answers.get(qid) in keys for qid, keys in _URGENT_ANSWER_KEYS.items())
 
 
 def scene_to_risk(scene: str, text: str = "") -> str:

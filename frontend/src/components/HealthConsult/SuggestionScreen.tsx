@@ -54,7 +54,38 @@ function SectionCard({
 
 const RISK_LEVEL: RiskLevel = 'medium'
 
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+
 export function SuggestionScreen({ solution, onBack }: Props) {
+  // 症状场景合规: lifestyle/nutrition 为空(边界禁止处置意见/营养处方), 仅渲染非空段。
+  // 序号按实际渲染顺序动态生成, 避免 symptom 页出现跳号(无 ①② 直接 ③④)。
+  const allSections: { title: string; tone: 'green' | 'blue' | 'red' | 'gray'; items: SolutionSection[] }[] = [
+    { title: '生活方式干预', tone: 'green', items: solution.lifestyle },
+    { title: '补充特定营养', tone: 'blue', items: solution.nutrition },
+    { title: '严重情况请及时就医', tone: 'red', items: solution.alert },
+  ]
+  // "综合管理建议"(含骨密度复查)仅 report 场景; symptom 场景边界禁止处置/营养,
+  // 且复查骨密度为报告专属, 不向症状方案追加。
+  if (solution.scene === 'report') {
+    allSections.push({
+      title: '综合管理建议',
+      tone: 'gray',
+      items: [
+        {
+          icon: '👨‍⚕️',
+          title: '医生评估',
+          content: '请将本建议带给主治医生,结合您的完整病史和检查结果综合判断。',
+        },
+        {
+          icon: '📅',
+          title: '复查安排',
+          content: '按医嘱定期复查骨密度或相关指标,跟踪变化趋势。',
+        },
+      ],
+    })
+  }
+  const sections = allSections.filter((s) => s.items.length > 0)
+
   return (
     <div className="hc-screen hc-suggestion-screen">
       <div className="hc-section-header">
@@ -78,37 +109,14 @@ export function SuggestionScreen({ solution, onBack }: Props) {
         text="AI 健康初筛建议,不能替代医生诊断。请结合专业医师评估与复查结果综合管理。"
       />
 
-      <SectionCard
-        title="① 生活方式干预"
-        tone="green"
-        sections={solution.lifestyle}
-      />
-      <SectionCard
-        title="② 补充特定营养"
-        tone="blue"
-        sections={solution.nutrition}
-      />
-      <SectionCard
-        title="③ 严重情况请及时就医"
-        tone="red"
-        sections={solution.alert}
-      />
-      <SectionCard
-        title="④ 综合管理建议"
-        tone="gray"
-        sections={[
-          {
-            icon: '👨‍⚕️',
-            title: '医生评估',
-            content: '请将本建议带给主治医生,结合您的完整病史和检查结果综合判断。',
-          },
-          {
-            icon: '📅',
-            title: '复查安排',
-            content: '按医嘱定期复查骨密度或相关指标,跟踪变化趋势。',
-          },
-        ]}
-      />
+      {sections.map((s, i) => (
+        <SectionCard
+          key={s.title}
+          title={`${CIRCLED[i] ?? ''} ${s.title}`}
+          tone={s.tone}
+          sections={s.items}
+        />
+      ))}
 
       <button type="button" className="hc-secondary-btn" onClick={onBack}>
         返回对话
