@@ -109,7 +109,8 @@ def test_list_bone_density_solutions_count():
 
 
 def test_list_leg_pain_solutions_count():
-    assert len(list_solutions("symptom")) == 6
+    # 6 个方向方案 + urgent_v1 = 7 (urgent_v1 已合规: 空 lifestyle/nutrition)
+    assert len(list_solutions("symptom")) == 7
 
 
 def test_list_product_solutions_empty():
@@ -119,14 +120,23 @@ def test_list_product_solutions_empty():
 # ─── 字典数量兜底 ─────────────────────────────────────────────
 def test_total_solutions_count():
     assert len(BONE_DENSITY_SOLUTIONS) == 6
-    assert len(LEG_PAIN_SOLUTIONS) == 6
+    assert len(LEG_PAIN_SOLUTIONS) == 7
 
 
 # ─── 字段完整性 ───────────────────────────────────────────────
 def test_all_solutions_have_required_sections():
-    for sol in list(BONE_DENSITY_SOLUTIONS.values()) + list(LEG_PAIN_SOLUTIONS.values()):
+    # report 方案: 边界允许给营养/处置建议 -> lifestyle/nutrition 非空
+    for sol in list(BONE_DENSITY_SOLUTIONS.values()):
         assert sol["lifestyle"], f"empty lifestyle: {sol['id']}"
         assert sol["nutrition"], f"empty nutrition: {sol['id']}"
+        assert sol["alert"], f"empty alert: {sol['id']}"
+        assert sol["department"]
+        assert sol["oneLineConclusion"]
+    # symptom 方案: 边界禁止处置意见/营养处方 -> lifestyle/nutrition 必须为空
+    # (仅保留方向/科室/就医提醒 alert)
+    for sol in list(LEG_PAIN_SOLUTIONS.values()):
+        assert sol["lifestyle"] == [], f"symptom {sol['id']} must have empty lifestyle (compliance)"
+        assert sol["nutrition"] == [], f"symptom {sol['id']} must have empty nutrition (compliance)"
         assert sol["alert"], f"empty alert: {sol['id']}"
         assert sol["department"]
         assert sol["oneLineConclusion"]

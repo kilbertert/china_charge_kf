@@ -83,7 +83,8 @@ def test_bone_density_solution_count():
 
 
 def test_leg_pain_solution_count():
-    assert len(LEG_PAIN_SOLUTIONS) == 6
+    # 6 个方向方案 + urgent_v1 = 7
+    assert len(LEG_PAIN_SOLUTIONS) == 7
 
 
 def test_bone_density_tags_match_questionnaire():
@@ -102,11 +103,17 @@ def test_solution_required_fields():
     for sol in list(BONE_DENSITY_SOLUTIONS.values()) + list(LEG_PAIN_SOLUTIONS.values()):
         assert {"id", "scene", "tag", "title", "riskLevel", "department",
                 "oneLineConclusion", "lifestyle", "nutrition", "alert"} <= set(sol.keys())
-        assert sol["lifestyle"], f"empty lifestyle in {sol['id']}"
-        assert sol["nutrition"], f"empty nutrition in {sol['id']}"
         assert sol["alert"], f"empty alert in {sol['id']}"
         for section in sol["lifestyle"] + sol["nutrition"] + sol["alert"]:
             assert {"icon", "title", "content"} <= set(section.keys())
+    # 合规边界: symptom 方案 lifestyle/nutrition 必须为空 (不给处置意见/营养处方)
+    for sol in list(LEG_PAIN_SOLUTIONS.values()):
+        assert sol["lifestyle"] == [], f"symptom {sol['id']} must have empty lifestyle"
+        assert sol["nutrition"] == [], f"symptom {sol['id']} must have empty nutrition"
+    # report 方案 lifestyle/nutrition 非空 (边界允许营养建议)
+    for sol in list(BONE_DENSITY_SOLUTIONS.values()):
+        assert sol["lifestyle"], f"report {sol['id']} should have lifestyle"
+        assert sol["nutrition"], f"report {sol['id']} should have nutrition"
 
 
 # ─── 查询函数 ─────────────────────────────────────────────────
@@ -145,7 +152,7 @@ def test_get_solution_missing_returns_none():
 
 def test_list_solutions_returns_correct_count():
     assert len(list_solutions("report")) == 6
-    assert len(list_solutions("symptom")) == 6
+    assert len(list_solutions("symptom")) == 7
     assert list_solutions("product") == []
 
 
