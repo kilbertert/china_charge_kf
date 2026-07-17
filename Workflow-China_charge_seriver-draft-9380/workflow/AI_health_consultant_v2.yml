@@ -35,6 +35,7 @@ workflow:
       - .PDF
       allowed_file_types:
       - image
+      - document
       allowed_file_upload_methods:
       - local_file
       - remote_url
@@ -366,6 +367,7 @@ workflow:
           - .pdf
           allowed_file_types:
           - image
+          - document
           allowed_file_upload_methods:
           - local_file
           - remote_url

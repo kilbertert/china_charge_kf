@@ -114,3 +114,76 @@ def test_dify_file_type_unknown_defaults_document():
 
 def test_dify_file_type_office_is_document():
     assert _dify_file_type("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "doc.docx") == "document"
+
+
+# ── P1-a 复审: 问卷答案路径 urgent 闸门 ──────────────────────
+# 症状问卷提交时不发文本(HealthConsultApp.handleSubmitAnswers), 工作流 URGENT_ANSWER_KEYS
+# 又缺 red_swollen_hot/calf_swelling/fever_chills -> Dify 返 symptom/medium。后端须对 answers 兜底。
+def test_urgent_gate_answers_red_swollen_hot(monkeypatch):
+    """空文本 + red_swollen_hot=yes + Dify symptom/medium -> 闸门覆盖 urgent。"""
+    mock_client = _setup_fake_dify(
+        monkeypatch,
+        {"scene": "symptom", "risk_level": "medium", "confidence": 0.8, "payload": {"riskLevel": "medium"}},
+    )
+    with patch("health_consult.dify_proxy.get_dify_client", return_value=mock_client):
+        result = asyncio.run(
+            chat_with_dify(text="", answers={"red_swollen_hot": "yes"}, language="中文")
+        )
+    assert result["risk_level"] == "urgent"
+    assert result["payload"]["solutionRef"] == "urgent_v1"
+
+
+def test_urgent_gate_answers_fever_chills(monkeypatch):
+    """空文本 + fever_chills=yes + Dify symptom/medium -> urgent。"""
+    mock_client = _setup_fake_dify(
+        monkeypatch,
+        {"scene": "symptom", "risk_level": "medium", "confidence": 0.8, "payload": {}},
+    )
+    with patch("health_consult.dify_proxy.get_dify_client", return_value=mock_client):
+        result = asyncio.run(
+            chat_with_dify(text="", answers={"fever_chills": "yes"}, language="中文")
+        )
+    assert result["risk_level"] == "urgent"
+
+
+def test_urgent_gate_answers_calf_swelling(monkeypatch):
+    """空文本 + calf_swelling=yes + Dify symptom/medium -> urgent。"""
+    mock_client = _setup_fake_dify(
+        monkeypatch,
+        {"scene": "symptom", "risk_level": "medium", "confidence": 0.8, "payload": {}},
+    )
+    with patch("health_consult.dify_proxy.get_dify_client", return_value=mock_client):
+        result = asyncio.run(
+            chat_with_dify(text="", answers={"calf_swelling": "yes"}, language="中文")
+        )
+    assert result["risk_level"] == "urgent"
+
+
+def test_urgent_gate_no_urgent_answers_keeps_medium(monkeypatch):
+    """空文本 + 无危险信号答案 + Dify medium -> 不覆盖, 保持 medium (闸门不误伤)。"""
+    mock_client = _setup_fake_dify(
+        monkeypatch,
+        {"scene": "symptom", "risk_level": "medium", "confidence": 0.8, "payload": {"riskLevel": "medium"}},
+    )
+    with patch("health_consult.dify_proxy.get_dify_client", return_value=mock_client):
+        result = asyncio.run(
+            chat_with_dify(text="", answers={"location": "knee", "trigger": "stairs"}, language="中文")
+        )
+    assert result["risk_level"] == "medium"
+
+
+def test_detect_urgent_answers_covers_all_seven_keys():
+    """复审 P1: 工作流 URGENT_ANSWER_KEYS 缺的 3 个 key 后端必须覆盖。"""
+    from health_consult.scene_router import detect_urgent_answers
+    # leg_pain 量表全部 7 个 urgent 问题(含工作流漏的 red_swollen_hot/calf_swelling/fever_chills)
+    urgent_qids = [
+        "sudden_severe", "trauma", "cannot_stand", "red_swollen_hot",
+        "calf_swelling", "chest_discomfort", "fever_chills",
+    ]
+    for qid in urgent_qids:
+        assert detect_urgent_answers({qid: "yes"}) is True, f"{qid}=yes 应判 urgent"
+    # 非危险信号答案不触发
+    assert detect_urgent_answers({"red_swollen_hot": "no"}) is False
+    assert detect_urgent_answers({"location": "knee"}) is False
+    assert detect_urgent_answers({}) is False
+    assert detect_urgent_answers(None) is False

@@ -58,27 +58,30 @@ def test_session_within_ttl_keeps_state():
 
 
 def test_session_ttl_lazy_cleanup_evicts_expired():
-    """store 超 512 项时触发 lazy 清理过期项 (防长期累积)。"""
-    # 填入若干过期项 + 一个未过期项
+    """store 超 512 项时触发 lazy 清理: 过期项被移除, 未过期项保留。
+
+    复审 P2: 旧版只加 4 项 (<512) 没真正触发 cleanup 分支。这里加 513 过期项 +
+    1 fresh = 514 > 512, 断言过期项全清、fresh 保留。
+    """
     base = time.monotonic()
-    for i in range(3):
-        router._store[f"test-ttl-stale-{i}"] = {
+    stale_prefix = "test-ttl-stale-"
+    # 513 个过期项 (ts 早于 TTL)
+    for i in range(513):
+        router._store[f"{stale_prefix}{i}"] = {
             "state": {"active": "A", "conv_a": "", "conv_b": ""},
             "ts": base - router._SESSION_TTL - 100,
         }
+    assert len(router._store) >= 513
     fresh_sid = "test-ttl-lazy-fresh"
-    router._store[fresh_sid] = {
-        "state": {"active": "A", "conv_a": "", "conv_b": ""},
-        "ts": base,
-    }
     fake = {"answer": "ok", "conversation_id": "c1"}
     try:
-        # 直接调 chat 触发 lazy 清理路径 (store > 512 才扫; 这里用 < 512 验证不误删未过期)
         with patch.object(DifyClient, "run_chatflow", AsyncMock(return_value=fake)):
             _run(router.chat(session_id=fresh_sid, text="hi", language="中文"))
-        # 未过期项必须仍在 (清理只删过期)
-        assert fresh_sid in router._store, "lazy 清理不应删除未过期项"
+        # chat 保存 fresh 后 store=514 > 512 -> 触发清理: 513 过期项应全部移除
+        remaining_stale = [k for k in router._store if k.startswith(stale_prefix)]
+        assert remaining_stale == [], f"过期项未清理: 残留 {len(remaining_stale)}"
+        # 未过期的 fresh 项保留 (ts 刚写入 > cutoff)
+        assert fresh_sid in router._store, "未过期项不应被清理"
     finally:
-        for i in range(3):
-            router._store.pop(f"test-ttl-stale-{i}", None)
-        router._store.pop(fresh_sid, None)
+        for k in [k for k in list(router._store) if k.startswith(stale_prefix) or k == fresh_sid]:
+            router._store.pop(k, None)

@@ -395,19 +395,19 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
     "title": "尿酸/痛风炎症型",
     "riskLevel": "medium",
     "department": "风湿免疫科 / 骨科",
-    "oneLineConclusion": "您的情况可能与尿酸相关关节炎症有关,建议风湿免疫科评估并明确是否需要降尿酸治疗。",
+    "oneLineConclusion": "您的情况可能与尿酸相关关节炎症有关,建议风湿免疫科就诊明确诊断。",
     "lifestyle": [],
     "nutrition": [],
     "alert": [
       {
         "icon": "🚨",
-        "title": "建议风湿免疫科",
-        "content": "评估是否需要降尿酸药物,不要只靠饮食控制。"
+        "title": "建议风湿免疫科就诊",
+        "content": "由医生评估是否需要治疗,不要仅靠自行调理拖延。"
       },
       {
         "icon": "🚨",
-        "title": "急性发作",
-        "content": "关节红肿热痛明显时,24 小时内就诊,急性期用药效果最好。"
+        "title": "急性发作及时就诊",
+        "content": "关节红肿热痛明显时,请 24 小时内就诊。"
       }
     ]
   },
@@ -435,7 +435,7 @@ export const LEG_PAIN_SOLUTIONS: Record<string, Solution> = {
       {
         "icon": "⚠",
         "title": "就医前注意",
-        "content": "小腿肿胀期间不要按摩或热敷,以免血栓脱落;避免久坐久卧,长途旅行每 1-2 小时起身活动。"
+        "content": "小腿肿胀期间不要按摩或热敷,以免血栓脱落。"
       }
     ]
   },

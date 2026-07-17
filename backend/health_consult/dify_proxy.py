@@ -29,6 +29,7 @@ from .scene_router import (  # noqa: E402
     RISK_URGENT,
     build_fallback_payload,
     detect_urgent,
+    detect_urgent_answers,
     get_default_scene_response,
 )
 
@@ -173,15 +174,22 @@ async def chat_with_dify(
     if not isinstance(payload, dict):
         payload = {}
 
-    # ── 确定性全局紧急闸门 (P1-1) ──────────────────────────────
-    # 不信任 Dify 的 risk_level: 工作流先按 scene 分流再查 urgent, 若场景分类器把
-    # "胸痛呼吸困难 + 骨密度T值-2.8" 判 report(因 T 值), report 分支不查 urgent,
-    # Dify 会返 report/medium -> 漏掉紧急信号。后端用关键词 detect_urgent 兜底覆盖。
-    # 安全并集: urgent = (Dify 判 urgent) OR (关键词命中)。绝不漏掉可识别的紧急信号。
-    if risk_level != RISK_URGENT and detect_urgent(text or ""):
+    # ── 确定性全局紧急闸门 (P1-1 + 复审 P1: answers 路径) ────────
+    # 不信任 Dify 的 risk_level。两条漏 urgent 路径都用后端确定性兜底:
+    #  1. 文本路径: 场景分类器把"胸痛呼吸困难+T值-2.8"判 report(因 T 值), report
+    #     分支不查 urgent -> Dify 返 report/medium。detect_urgent(text) 关键词兜底。
+    #  2. 问卷答案路径: handleSubmitAnswers 症状场景不发文本, 工作流 URGENT_ANSWER_KEYS
+    #     又缺 red_swollen_hot/calf_swelling/fever_chills -> Dify 返 symptom/medium。
+    #     detect_urgent_answers(answers) 答案兜底。
+    # 安全并集: urgent = (Dify判urgent) OR (文本关键词) OR (答案危险信号)。绝不漏。
+    if risk_level != RISK_URGENT and (
+        detect_urgent(text or "") or detect_urgent_answers(answers)
+    ):
         log.warning(
-            "urgent gate override: Dify scene=%s risk=%s but urgent keyword hit. text=%r",
-            scene, risk_level, (text or "")[:120],
+            "urgent gate override: Dify scene=%s risk=%s | text_urgent=%s answers_urgent=%s | text=%r",
+            scene, risk_level,
+            detect_urgent(text or ""), detect_urgent_answers(answers),
+            (text or "")[:80],
         )
         scene = SCENE_SYMPTOM
         risk_level = RISK_URGENT

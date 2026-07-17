@@ -63,7 +63,11 @@ export function SuggestionScreen({ solution, onBack }: Props) {
     { title: '生活方式干预', tone: 'green', items: solution.lifestyle },
     { title: '补充特定营养', tone: 'blue', items: solution.nutrition },
     { title: '严重情况请及时就医', tone: 'red', items: solution.alert },
-    {
+  ]
+  // "综合管理建议"(含骨密度复查)仅 report 场景; symptom 场景边界禁止处置/营养,
+  // 且复查骨密度为报告专属, 不向症状方案追加。
+  if (solution.scene === 'report') {
+    allSections.push({
       title: '综合管理建议',
       tone: 'gray',
       items: [
@@ -78,8 +82,8 @@ export function SuggestionScreen({ solution, onBack }: Props) {
           content: '按医嘱定期复查骨密度或相关指标,跟踪变化趋势。',
         },
       ],
-    },
-  ]
+    })
+  }
   const sections = allSections.filter((s) => s.items.length > 0)
 
   return (
