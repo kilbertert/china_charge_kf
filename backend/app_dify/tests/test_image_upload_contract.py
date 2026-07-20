@@ -81,6 +81,11 @@ def test_image_is_reuploaded_when_router_switches_from_a_to_b() -> None:
                     ]
                 ),
             ) as run,
+            patch.object(
+                router,
+                "_cache_bug_image",
+                AsyncMock(return_value=True),
+            ) as cache,
         ):
             resp = client.post(
                 "/api/chat",
@@ -94,6 +99,53 @@ def test_image_is_reuploaded_when_router_switches_from_a_to_b() -> None:
         assert run.await_count == 2
         assert run.await_args_list[0].kwargs["files"][0]["upload_file_id"] == "upload-a"
         assert run.await_args_list[1].kwargs["files"][0]["upload_file_id"] == "upload-b"
+        cache.assert_awaited_once_with("conv-b", PNG_BYTES, "screen.png")
+    finally:
+        router._store.pop(sid, None)
+        router._dual = old_dual
+        router._client_b = old_client_b
+
+
+def test_bug_image_cache_failure_is_visible_to_user() -> None:
+    sid = "test-image-cache-failure"
+    old_dual = router._dual
+    old_client_b = router._client_b
+    router._dual = True
+    router._client_b = DifyClient("http://dify.test/v1", "app-test-b", "test-user")
+    try:
+        with (
+            patch.object(
+                DifyClient,
+                "upload_file",
+                AsyncMock(side_effect=["upload-a", "upload-b"]),
+            ),
+            patch.object(
+                DifyClient,
+                "run_chatflow",
+                AsyncMock(
+                    side_effect=[
+                        {
+                            "answer": "<!--SYS:SWITCH_TO_BUG-->",
+                            "conversation_id": "conv-a",
+                        },
+                        {"answer": "请确认反馈。", "conversation_id": "conv-b"},
+                    ]
+                ),
+            ),
+            patch.object(
+                router,
+                "_cache_bug_image",
+                AsyncMock(return_value=False),
+            ),
+        ):
+            resp = client.post(
+                "/api/chat",
+                data={"text": "这个页面有问题", "session_id": sid},
+                files={"image": ("screen.png", PNG_BYTES, "image/png")},
+            )
+
+        assert resp.status_code == 200
+        assert "截图暂未保存成功" in resp.json()["assistant_text"]
     finally:
         router._store.pop(sid, None)
         router._dual = old_dual

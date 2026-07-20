@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Any, Optional
 
+import httpx
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -192,6 +193,56 @@ class ChatflowRouter:
             conversation_id=conversation_id,
         )
 
+    async def _cache_bug_image(
+        self,
+        conversation_id: str,
+        image_bytes: bytes,
+        image_name: str | None,
+    ) -> bool:
+        """把 H5 原图缓存到 120 Bug API，供后续确认轮写入飞书附件。"""
+        base = settings.bugtrack_api_base.rstrip("/")
+        if not base:
+            return True
+        ctype = _detect_image_mime(image_bytes)
+        if not conversation_id or not ctype:
+            return False
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.bugtrack_image_cache_timeout)
+            ) as client:
+                response = await client.post(
+                    f"{base}/internal/bugtrack/cache-image",
+                    data={"conversation_id": conversation_id},
+                    files={
+                        "image": (
+                            image_name or "bug-screenshot.jpg",
+                            image_bytes,
+                            ctype,
+                        )
+                    },
+                )
+            if response.status_code >= 400:
+                log.warning(
+                    "[ROUTER] Bug 截图缓存失败 conv=%s HTTP=%d",
+                    conversation_id[:8], response.status_code,
+                )
+                return False
+            body = response.json()
+            if not body.get("success"):
+                log.warning("[ROUTER] Bug 截图缓存返回失败 conv=%s", conversation_id[:8])
+                return False
+            log.info(
+                "[ROUTER] Bug 截图已跨轮缓存 conv=%s size=%dB",
+                conversation_id[:8], len(image_bytes),
+            )
+            return True
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning(
+                "[ROUTER] Bug 截图缓存异常 conv=%s error=%s",
+                conversation_id[:8], str(exc)[:120],
+            )
+            return False
+
     async def chat(
         self,
         *,
@@ -254,6 +305,15 @@ class ChatflowRouter:
                 active = state.get("active", "A")
                 new_conv = nc2 or new_conv
 
+        if image_bytes and state.get("active") == "B":
+            bug_conv = (state.get("conv_b") or "").strip()
+            cached = await self._cache_bug_image(bug_conv, image_bytes, image_name)
+            if not cached:
+                answer = (
+                    answer.rstrip()
+                    + "\n\n截图暂未保存成功，请重新上传一次后再确认记录。"
+                )
+
         # 剥离所有 <!--SYS:...--> 控制标记 (SWITCH 残留 + TIMER 等 WeCom 协议标记)。
         # H5 不作用于这些协议标记, 统一从用户可见文本移除。
         answer = strip_sys_markers(answer)
@@ -300,6 +360,7 @@ async def health() -> dict:
         "api_base": settings.dify_api_base,
         "end_user": settings.dify_end_user,
         "dual_app": router._dual,
+        "bugtrack_image_cache": bool(settings.bugtrack_api_base),
     }
 
 

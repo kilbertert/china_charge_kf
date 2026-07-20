@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # input_language。留空则不传, Dify 用字段 default。
     dify_chatflow_input_language: str = ""
 
+    # ---- Bug 截图跨轮缓存 ----
+    # H5 首轮图片直传 Dify，不经过 120 wecom 后端；写飞书发生在后续确认轮。
+    # 配置后，H5 会把原图按 Dify B conversation_id 缓存到 Bug API，供 /add 附件回取。
+    bugtrack_api_base: str = ""
+    bugtrack_image_cache_timeout: float = 20.0
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.app_cors_origins.split(",") if o.strip()]

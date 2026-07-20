@@ -1817,7 +1817,15 @@ workflow:
 
             2. 用户补充反馈内容或要求改某字段 → MODIFY_NEW
 
-            3. 用户跳转问别的事(如计费规则/怎么操作) → IRRELEVANT'
+            3. 用户跳转问别的事(如计费规则/怎么操作) → IRRELEVANT
+
+
+            【确认优先级补充规则】
+
+            - 用户先明确肯定，再说“记得把图片/截图/附件上传”等流程要求，仍输出 CONFIRM_NEW。
+
+            - 只有明确改变模块、操作描述、环境或类型时才输出 MODIFY_NEW。
+            '
         - id: n17-user
           role: user
           text: '{{#6002.query_text#}}'
@@ -1851,7 +1859,7 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "def main(llm_text: str) -> dict:\n    import re\n    t = (llm_text or \"\").upper()\n    for label in [\"CONFIRM_NEW\", \"MODIFY_NEW\", \"MODIFY_EXISTING\", \"ABANDON\", \"BUG_NEW_TOPIC\", \"IRRELEVANT\"]:\n        if label in t:\n            return {\"label\": label}\n    return {\"label\": \"IRRELEVANT\"}"
+        code: "def main(llm_text: str, query_text: str) -> dict:\n    import re\n    q = re.sub(r\"[\\s,，。.!！?？;；:：、]+\", \"\", (query_text or \"\").lower())\n    if any(x in q for x in [\"算了\", \"不报了\", \"不用记录\", \"取消反馈\", \"结束反馈\"]):\n        return {\"label\": \"ABANDON\"}\n    confirm = re.match(r\"^(是的?|对的?|没错|正确|确认|可以|好的?|嗯+|没问题|信息准确|就这样)+\", q)\n    if confirm:\n        rest = q[confirm.end():]\n        if not rest:\n            return {\"label\": \"CONFIRM_NEW\"}\n        image_words = [\"图片\", \"截图\", \"附件\", \"照片\", \"图\"]\n        attach_actions = [\"上传\", \"附上\", \"带上\", \"保存\", \"记录\", \"提交\"]\n        change_markers = [\"改成\", \"修改\", \"更正\", \"补充\", \"不是\", \"不对\", \"应该是\", \"调整为\"]\n        if any(x in rest for x in image_words) and any(x in rest for x in attach_actions) and not any(x in rest for x in change_markers):\n            return {\"label\": \"CONFIRM_NEW\"}\n    t = (llm_text or \"\").upper()\n    for label in [\"CONFIRM_NEW\", \"MODIFY_NEW\", \"MODIFY_EXISTING\", \"ABANDON\", \"BUG_NEW_TOPIC\", \"IRRELEVANT\"]:\n        if label in t:\n            return {\"label\": label}\n    return {\"label\": \"IRRELEVANT\"}"
         code_language: python3
         outputs:
           label:
@@ -1865,6 +1873,10 @@ workflow:
           value_selector:
           - '6170'
           - text
+        - variable: query_text
+          value_selector:
+          - '6002'
+          - query_text
       height: 88
       id: 6170-parse
       position:
@@ -1979,7 +1991,6 @@ workflow:
 
             5. 完全无有效业务信息
 
-
             【迭代修正规则】若用户补充了修改要求,100%按客户要求修正对应字段:
 
             - 模块归属错误->调整mokuai为客户指定名称
@@ -2024,7 +2035,17 @@ workflow:
 
             - 客户回复只做信息同步与确认,不做排期/解决方案承诺
 
-            - 必须输出【充足度】SUFFICIENT 或【充足度】INSUFFICIENT 标签'
+            - 必须输出【充足度】SUFFICIENT 或【充足度】INSUFFICIENT 标签
+
+
+            【跨轮与附件规则】
+
+            - 上一轮结构化字段同样属于有效信息；四字段已完整时，不得因本轮附件处理要求重新判为 INSUFFICIENT。
+
+            - 当前 H5/客服窗口支持图片文件，严禁声称窗口无法接收文件或要求改走其他渠道。
+
+            - “上传图片/附上截图”是附件处理要求，不等于修改反馈四字段。
+            '
         - id: n5b-user
           role: user
           text: '{{#6002.query_text#}}'
