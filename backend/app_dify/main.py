@@ -196,6 +196,7 @@ class ChatflowRouter:
     async def _cache_bug_image(
         self,
         conversation_id: str,
+        session_id: str,
         image_bytes: bytes,
         image_name: str | None,
     ) -> bool:
@@ -212,7 +213,12 @@ class ChatflowRouter:
             ) as client:
                 response = await client.post(
                     f"{base}/internal/bugtrack/cache-image",
-                    data={"conversation_id": conversation_id},
+                    data={
+                        "conversation_id": conversation_id,
+                        "session_id": session_id,
+                        "channel": "h5",
+                        "user_key": session_id,
+                    },
                     files={
                         "image": (
                             image_name or "bug-screenshot.jpg",
@@ -243,6 +249,63 @@ class ChatflowRouter:
             )
             return False
 
+    async def _load_route_state(self, session_id: str) -> dict[str, str] | None:
+        """Restore A/B Dify conversation ids after an H5 process restart."""
+        base = settings.bugtrack_api_base.rstrip("/")
+        if not base:
+            return None
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.bugtrack_image_cache_timeout)
+            ) as client:
+                response = await client.get(
+                    f"{base}/internal/bugtrack/route-session/h5/{session_id}"
+                )
+            response.raise_for_status()
+            route = (response.json() or {}).get("route")
+            if not isinstance(route, dict):
+                return None
+            active = "B" if route.get("active") == "B" else "A"
+            return {
+                "active": active,
+                "conv_a": str(route.get("conv_a") or ""),
+                "conv_b": str(route.get("conv_b") or ""),
+            }
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning(
+                "[ROUTER] 远端路由状态读取失败 session=%s error=%s",
+                session_id[:12], str(exc)[:120],
+            )
+            return None
+
+    async def _save_route_state(self, session_id: str, state: dict[str, Any]) -> bool:
+        """Persist only routing identifiers; message/business state stays in Bug DB/Dify."""
+        base = settings.bugtrack_api_base.rstrip("/")
+        if not base:
+            return True
+        payload = {
+            "active": "B" if state.get("active") == "B" else "A",
+            "conv_a": str(state.get("conv_a") or ""),
+            "conv_b": str(state.get("conv_b") or ""),
+            "route_data": {},
+        }
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.bugtrack_image_cache_timeout)
+            ) as client:
+                response = await client.put(
+                    f"{base}/internal/bugtrack/route-session/h5/{session_id}",
+                    json=payload,
+                )
+            response.raise_for_status()
+            return bool((response.json() or {}).get("success"))
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning(
+                "[ROUTER] 远端路由状态保存失败 session=%s error=%s",
+                session_id[:12], str(exc)[:120],
+            )
+            return False
+
     async def chat(
         self,
         *,
@@ -266,12 +329,27 @@ class ChatflowRouter:
             # 超时未活动 -> 视为新会话: 重置 active/conv, 避免陈旧 conv_id 误用
             if entry and (now - entry.get("ts", 0.0)) > self._SESSION_TTL:
                 entry = None
-            state = dict((entry or {}).get("state") or {"active": "A", "conv_a": "", "conv_b": ""})
+            state = dict((entry or {}).get("state") or {})
+
+        if not state:
+            state = await self._load_route_state(session_id) or {
+                "active": "A", "conv_a": "", "conv_b": ""
+            }
 
         active = state.get("active", "A")
         client = self._client_for(active)
         conv_id = (state.get("conv_a") if active == "A" else state.get("conv_b")) or ""
         files = await self._build_files(client, image_bytes, image_name, audio_bytes, audio_name)
+        bug_image_cached = False
+
+        # 已在 B 会话中时，必须先把本轮图片绑定草稿，再让 Dify 处理“确认写表”。
+        # 否则确认轮上传的图片会在 /add 完成后才到 120，漏出本次飞书记录。
+        if image_bytes and active == "B" and conv_id:
+            bug_image_cached = await self._cache_bug_image(
+                conv_id, session_id, image_bytes, image_name
+            )
+            if not bug_image_cached:
+                raise DifyError("Bug screenshot persistence failed before chatflow")
 
         raw = await self._call(client, query, inputs, files, conv_id)
         answer = (raw or {}).get("answer") or ""
@@ -297,6 +375,14 @@ class ChatflowRouter:
                 target = self._client_for(re_route)
                 tconv = (state.get("conv_b") if re_route == "B" else state.get("conv_a")) or ""
                 tfiles = await self._build_files(target, image_bytes, image_name, audio_bytes, audio_name)
+                if image_bytes and re_route == "B" and tconv and not bug_image_cached:
+                    bug_image_cached = await self._cache_bug_image(
+                        tconv, session_id, image_bytes, image_name
+                    )
+                    if not bug_image_cached:
+                        raise DifyError(
+                            "Bug screenshot persistence failed before rerouted chatflow"
+                        )
                 raw2 = await self._call(target, query, inputs, tfiles, tconv)
                 answer = (raw2 or {}).get("answer") or ""
                 nc2 = (raw2 or {}).get("conversation_id") or ""
@@ -305,9 +391,11 @@ class ChatflowRouter:
                 active = state.get("active", "A")
                 new_conv = nc2 or new_conv
 
-        if image_bytes and state.get("active") == "B":
+        if image_bytes and state.get("active") == "B" and not bug_image_cached:
             bug_conv = (state.get("conv_b") or "").strip()
-            cached = await self._cache_bug_image(bug_conv, image_bytes, image_name)
+            cached = await self._cache_bug_image(
+                bug_conv, session_id, image_bytes, image_name
+            )
             if not cached:
                 answer = (
                     answer.rstrip()
@@ -325,6 +413,8 @@ class ChatflowRouter:
                 cutoff = time.monotonic() - self._SESSION_TTL
                 for k in [k for k, v in self._store.items() if v.get("ts", 0.0) <= cutoff]:
                     self._store.pop(k, None)
+
+        await self._save_route_state(session_id, state)
 
         log.info(
             "[ROUTER] session=%s active=%s conv_a=%s conv_b=%s answer_len=%d",

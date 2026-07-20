@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -99,7 +100,7 @@ def test_image_is_reuploaded_when_router_switches_from_a_to_b() -> None:
         assert run.await_count == 2
         assert run.await_args_list[0].kwargs["files"][0]["upload_file_id"] == "upload-a"
         assert run.await_args_list[1].kwargs["files"][0]["upload_file_id"] == "upload-b"
-        cache.assert_awaited_once_with("conv-b", PNG_BYTES, "screen.png")
+        cache.assert_awaited_once_with("conv-b", sid, PNG_BYTES, "screen.png")
     finally:
         router._store.pop(sid, None)
         router._dual = old_dual
@@ -146,6 +147,47 @@ def test_bug_image_cache_failure_is_visible_to_user() -> None:
 
         assert resp.status_code == 200
         assert "截图暂未保存成功" in resp.json()["assistant_text"]
+    finally:
+        router._store.pop(sid, None)
+        router._dual = old_dual
+        router._client_b = old_client_b
+
+
+def test_confirmation_turn_persists_image_before_dify_can_write_record() -> None:
+    sid = "test-image-confirmation-order"
+    old_dual = router._dual
+    old_client_b = router._client_b
+    router._dual = True
+    router._client_b = DifyClient("http://dify.test/v1", "app-test-b", "test-user")
+    router._store[sid] = {
+        "state": {"active": "B", "conv_a": "conv-a", "conv_b": "conv-b-existing"},
+        "ts": time.monotonic(),
+    }
+    order: list[str] = []
+
+    async def cache_first(*_args, **_kwargs):
+        order.append("cache")
+        return True
+
+    async def run_after_cache(*_args, **_kwargs):
+        order.append("dify")
+        return {"answer": "已记录。", "conversation_id": "conv-b-existing"}
+
+    try:
+        with (
+            patch.object(DifyClient, "upload_file", AsyncMock(return_value="upload-b")),
+            patch.object(DifyClient, "run_chatflow", AsyncMock(side_effect=run_after_cache)),
+            patch.object(router, "_cache_bug_image", AsyncMock(side_effect=cache_first)),
+            patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+        ):
+            resp = client.post(
+                "/api/chat",
+                data={"text": "确认记录，并附上这张图", "session_id": sid},
+                files={"image": ("confirm.png", PNG_BYTES, "image/png")},
+            )
+
+        assert resp.status_code == 200
+        assert order == ["cache", "dify"]
     finally:
         router._store.pop(sid, None)
         router._dual = old_dual

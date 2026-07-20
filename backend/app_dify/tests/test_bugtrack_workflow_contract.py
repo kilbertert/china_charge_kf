@@ -38,6 +38,9 @@ def test_search_request_keeps_keyword_module_and_operation_description() -> None
         mokuai="设备白名单",
         search_keyword="",
         op_desc="后台查看汽车桩时白名单显示暂无数据",
+        conversation_id="conv-b-1",
+        flow_state="IDLE",
+        query_text="设备白名单显示暂无数据",
     )
     body = json.loads(result["body_json"])
 
@@ -46,7 +49,65 @@ def test_search_request_keeps_keyword_module_and_operation_description() -> None
         "module": "设备白名单",
         "op_desc": "后台查看汽车桩时白名单显示暂无数据",
         "limit": 5,
+        "conversation_id": "conv-b-1",
+        "flow_state": "IDLE",
+        "source_text": "设备白名单显示暂无数据",
+        "force_new": True,
+        "idempotency_key": body["idempotency_key"],
     }
+    assert body["idempotency_key"].startswith("dify-search-")
+
+
+def test_followup_search_reuses_current_draft_binding() -> None:
+    node = _nodes()["6240build"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    result = namespace["main"](
+        mokuai="设备白名单",
+        search_keyword="白名单",
+        op_desc="补充：仅汽车桩异常",
+        conversation_id="conv-b-1",
+        flow_state="await_confirm_new",
+        query_text="补充一下，仅汽车桩异常",
+    )
+    assert json.loads(result["body_json"])["force_new"] is False
+
+
+def test_add_and_update_requests_carry_relational_context() -> None:
+    nodes = _nodes()
+    add_ns: dict = {}
+    exec(nodes["6260a"]["code"], add_ns)
+    add_body = json.loads(
+        add_ns["main"](
+            mokuai="计费模板",
+            caozuomiaoshu="保存后未生效",
+            huanjing="后台",
+            leixing="bug",
+            conversation_id="conv-b-2",
+            flow_state="await_confirm_new",
+            query_text="确认记录",
+        )["body_json"]
+    )
+    assert add_body["conversation_id"] == "conv-b-2"
+    assert add_body["source_text"] == "确认记录"
+    assert add_body["idempotency_key"].startswith("dify-add-")
+
+    update_ns: dict = {}
+    exec(nodes["6176a"]["code"], update_ns)
+    update_body = json.loads(
+        update_ns["main"](
+            record_id="rec-1",
+            feedback_zh="补充截图与复现条件",
+            mokuai="计费模板",
+            huanjing="后台",
+            leixing="bug",
+            conversation_id="conv-b-2",
+            flow_state="await_confirm_modify",
+            query_text="确认修改",
+        )["body_json"]
+    )
+    assert update_body["conversation_id"] == "conv-b-2"
+    assert update_body["idempotency_key"].startswith("dify-update-")
 
 
 def test_confirm_with_image_instruction_overrides_llm_modify_misclassification() -> None:
