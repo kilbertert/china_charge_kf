@@ -1183,7 +1183,9 @@ workflow:
             2. 判定信息充足度,不足时生成引导话术;充足时生成确认话术
 
 
-            【输入】用户反馈: {{#6002.query_text#}}
+            【输入】用户反馈文本: {{#6002.query_text#}}
+
+            用户附带截图时,必须同时读取 sys.files 中的图片内容,把截图里的页面、标签、报错和异常现象纳入四字段与查重词提取。
 
 
             【判定原则】同时具备模块+操作路径+问题现象+终端环境4要素即判SUFFICIENT(用户ID/订单ID/桩编号是加分项非必填, 无则不因此判INSUFFICIENT)。
@@ -1228,7 +1230,7 @@ workflow:
 
             【全局约束】
 
-            - 100%基于输入文本,不脑补不编造
+            - 100%基于输入文本与用户截图,不脑补不编造
 
             - 枚举字段严格遵守可选值范围
 
@@ -1248,7 +1250,7 @@ workflow:
             variable_selector:
             - sys
             - files
-          enabled: false
+          enabled: true
         memory:
           window:
             enabled: true
@@ -1960,6 +1962,8 @@ workflow:
 
             【当前用户补充】: {{#6002.query_text#}}
 
+            用户本轮附带截图时,必须同时读取 sys.files 中的图片内容并合并到结构化字段。
+
             【对话历史】: 系统自动注入此前各轮用户原话与客服回复(无需手动引用)
 
 
@@ -2014,7 +2018,7 @@ workflow:
 
             【全局约束】
 
-            - 100%基于输入文本,不脑补不编造
+            - 100%基于输入文本、历史字段与用户截图,不脑补不编造
 
             - 枚举字段严格遵守可选值范围
 
@@ -2027,7 +2031,13 @@ workflow:
         context:
           enabled: false
           variable_selector: []
-        vision: *id002
+        vision:
+          configs:
+            detail: high
+            variable_selector:
+            - sys
+            - files
+          enabled: true
         reasoning_format: separated
         selected: false
         title: N5b 转写(合并补充)
@@ -2517,7 +2527,7 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "def main(mokuai: str, search_keyword: str) -> dict:\n    import json\n    kw = (search_keyword or \"\").strip() or (mokuai or \"\").strip()\n    return {\"body_json\": json.dumps({\"keyword\": kw, \"limit\": 5}, ensure_ascii=False)}"
+        code: "def main(mokuai: str, search_keyword: str, op_desc: str) -> dict:\n    import json\n    module = (mokuai or \"\").strip()\n    keyword = (search_keyword or \"\").strip() or module\n    payload = {\"keyword\": keyword, \"module\": module, \"op_desc\": (op_desc or \"\").strip(), \"limit\": 5}\n    return {\"body_json\": json.dumps(payload, ensure_ascii=False)}"
         code_language: python3
         outputs:
           body_json:
@@ -2535,6 +2545,10 @@ workflow:
           value_selector:
           - conversation
           - cv_search_keyword
+        - variable: op_desc
+          value_selector:
+          - conversation
+          - cv_feedback_zh
       height: 88
       id: 6240build
       position:

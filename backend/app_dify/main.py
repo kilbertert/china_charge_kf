@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from app_dify.config import settings
 from app_dify.dify_client import (
@@ -86,8 +86,15 @@ def _normalize_language(raw: str) -> str:
     return _LANG_MAP.get(s.lower(), "")
 
 
-def _detect_image_mime(content: bytes, filename: str = "") -> str:
-    """图片 MIME 魔数检测 (回退到扩展名)。Dify 按真实类型存, 错配会导致 vision 失败。"""
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+class InvalidImageError(ValueError):
+    """前端上传的图片为空、超限或不是 Dify vision 支持的真实图片。"""
+
+
+def _detect_image_mime(content: bytes) -> str | None:
+    """按魔数识别 Dify vision 支持的图片；不再用扩展名伪装未知内容。"""
     if content[:8] == b"\x89PNG\r\n\x1a\n":
         return "image/png"
     if content[:3] == b"\xff\xd8\xff":
@@ -96,16 +103,7 @@ def _detect_image_mime(content: bytes, filename: str = "") -> str:
         return "image/gif"
     if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
         return "image/webp"
-    name = (filename or "").lower()
-    if name.endswith(".png"):
-        return "image/png"
-    if name.endswith((".jpg", ".jpeg")):
-        return "image/jpeg"
-    if name.endswith(".gif"):
-        return "image/gif"
-    if name.endswith(".webp"):
-        return "image/webp"
-    return "image/jpeg"
+    return None
 
 
 # ----------------------------------------------------------------------
@@ -156,14 +154,20 @@ class ChatflowRouter:
         """
         files: list[dict[str, Any]] = []
         if image_bytes:
-            ctype = _detect_image_mime(image_bytes, image_name or "")
+            ctype = _detect_image_mime(image_bytes)
+            if not ctype:
+                raise InvalidImageError("图片格式无效，仅支持 PNG/JPG/GIF/WEBP")
             fid = await client.upload_file(
                 filename=image_name or "image.png",
                 content=image_bytes,
                 content_type=ctype,
             )
             files.append(DifyClient.file_ref(fid, "image"))
-            log.info("[ROUTER] 图片上传至 app=%s file_id=%s size=%dB", client.api_key[:10], fid, len(image_bytes))
+            app_name = "B" if client is self._client_b else "A"
+            log.info(
+                "[ROUTER] 图片上传至 app=%s file_id=%s size=%dB mime=%s",
+                app_name, fid[:8], len(image_bytes), ctype,
+            )
         if audio_bytes:
             ctype = _sniff_audio_type(audio_name or "", None)
             fid = await client.upload_file(
@@ -182,20 +186,11 @@ class ChatflowRouter:
         files: list[dict[str, Any]],
         conversation_id: str,
     ) -> dict[str, Any]:
-        """调 chatflow; 若 files 触发 400(如 app 不接受某类文件)降级为纯文本重试。"""
-        try:
-            return await client.run_chatflow(
-                query=query, inputs=inputs, files=files or None,
-                conversation_id=conversation_id,
-            )
-        except DifyError as e:
-            if files and "400" in str(e):
-                log.warning("[ROUTER] 带文件调用失败, 降级纯文本重试: %s", str(e)[:160])
-                return await client.run_chatflow(
-                    query=query, inputs=inputs, files=None,
-                    conversation_id=conversation_id,
-                )
-            raise
+        """调用 chatflow；带文件失败时必须显式报错，禁止静默丢图后伪装成功。"""
+        return await client.run_chatflow(
+            query=query, inputs=inputs, files=files or None,
+            conversation_id=conversation_id,
+        )
 
     async def chat(
         self,
@@ -327,10 +322,27 @@ async def chat(
     image_bytes: bytes | None = None
     image_name: str | None = None
     if image is not None:
-        content = await image.read()
-        if content:
-            image_bytes = content
-            image_name = image.filename or "image"
+        content = await image.read(_MAX_IMAGE_BYTES + 1)
+        if not content:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "上传的图片为空，请重新选择图片", "session_id": sid},
+            )
+        if len(content) > _MAX_IMAGE_BYTES:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "图片超过 10MB，请压缩后重试", "session_id": sid},
+            )
+        if not _detect_image_mime(content):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": "图片格式无效，仅支持 PNG、JPG、GIF、WEBP",
+                    "session_id": sid,
+                },
+            )
+        image_bytes = content
+        image_name = image.filename or "image"
 
     audio_bytes: bytes | None = None
     audio_name: str | None = None
@@ -350,15 +362,21 @@ async def chat(
             audio_name=audio_name,
             language=_normalize_language(language),
         )
+    except InvalidImageError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(e), "session_id": sid},
+        )
     except DifyError as e:
         log.error("Chatflow error: %s", e)
-        return ChatResponse(
-            assistant_text=f"[DifyError:chatflow] {e}",
-            image_id=None,
-            audio_id=None,
-            media=[],
-            raw=None,
-            session_id=sid,
+        detail = (
+            "图片处理失败，请确认图片清晰且格式受支持后重试"
+            if image_bytes
+            else "AI 服务暂时不可用，请稍后重试"
+        )
+        return JSONResponse(
+            status_code=502,
+            content={"detail": detail, "session_id": sid},
         )
 
     assistant_text, media = extract_assistant_text_and_media(
