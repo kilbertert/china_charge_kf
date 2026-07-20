@@ -18,6 +18,7 @@ import psycopg2.extras
 
 APP_ID = "707dd6d2-059f-47c9-aaac-4638e74969c6"
 APPLY = len(sys.argv) > 1 and sys.argv[1] == "--apply"
+BACKUP_PATH = "/tmp/charge_b_before_relational_patch.json"
 
 SEARCH_CODE = r'''def main(mokuai: str, search_keyword: str, op_desc: str, conversation_id: str, flow_state: str, query_text: str) -> dict:
     import hashlib, json
@@ -121,11 +122,15 @@ def main() -> None:
             if draft and draft["id"] != effective["workflow_id"]:
                 targets.append((draft["id"], "draft"))
             print(f"[patch] apply={APPLY} targets={[(x[:8], k) for x, k in targets]}")
+            backup_rows = []
             for workflow_id, kind in targets:
                 cursor.execute("SELECT graph FROM workflows WHERE id=%s", (workflow_id,))
                 graph = cursor.fetchone()["graph"]
                 if isinstance(graph, str):
                     graph = json.loads(graph)
+                backup_rows.append(
+                    {"workflow_id": workflow_id, "kind": kind, "graph": graph}
+                )
                 graph, changed = mutate(graph)
                 print(f"  {workflow_id[:8]} {kind}: changed={changed or 'none'}")
                 if APPLY and changed:
@@ -134,8 +139,15 @@ def main() -> None:
                         (json.dumps(graph, ensure_ascii=False), workflow_id),
                     )
         if APPLY:
+            with open(BACKUP_PATH, "w", encoding="utf-8") as backup_file:
+                json.dump(
+                    {"app_id": APP_ID, "targets": backup_rows},
+                    backup_file,
+                    ensure_ascii=False,
+                )
+            os.chmod(BACKUP_PATH, 0o600)
             conn.commit()
-            print("[patch] committed")
+            print(f"[patch] committed backup={BACKUP_PATH}")
         else:
             print("[patch] dry-run")
     finally:
@@ -144,4 +156,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
