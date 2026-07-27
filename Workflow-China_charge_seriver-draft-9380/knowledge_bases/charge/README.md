@@ -7,9 +7,16 @@
 ## 生产事实边界
 
 本目录中的文件仍是待运营回填的 Dify 知识库骨架，不能作为生产答复的权威来源。
-当前已核实、可直接面向客户输出的事实统一维护在
-`shared/charge_service.yaml`。后端只对该文件中的已验证条目启用确定性快答；
-本目录的占位样例不得被提升为生产规则。
+当前已核实、可直接面向客户输出的事实由真实 XLSX/DOCX 生成到
+`shared/charge_service.yaml` 和本目录的 `generated_verified_facts.md`：
+
+```bash
+python scripts/build_charge_service_facts.py
+python scripts/build_charge_service_facts.py --check
+```
+
+后端只对生成文件中的已验证条目启用确定性快答；其他占位样例不得被提升为
+生产规则。原始资料更新后必须重新生成并通过测试，禁止直接编辑生成文件。
 
 ## 7 个数据集清单
 

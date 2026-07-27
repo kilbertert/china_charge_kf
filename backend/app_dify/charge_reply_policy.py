@@ -1,9 +1,8 @@
-"""Deterministic charge-customer-service reply policy.
+"""Deterministic charge-customer-service reply and routing policy.
 
-The policy handles responses that must not depend on an LLM: credential and
-privilege refusal, bounded vague-input clarification, and verified high-volume
-FAQ facts. All customer-facing text and verified facts live in
-``shared/charge_service.yaml``.
+The generated ``shared/charge_service.yaml`` is the runtime authority for
+verified business facts. The policy also keeps high-risk requests and obvious
+Bug/progress routing out of the LLM path.
 """
 
 from __future__ import annotations
@@ -63,8 +62,27 @@ class ChargeReplyPolicy:
         self._clarification_prompts = clarification.get("prompts") or {}
         self._exhausted_reply = clarification.get("exhausted_reply") or {}
 
+        routing = data.get("routing") or {}
+        self._bug_terms = tuple(str(item).lower() for item in routing.get("bug_terms") or [])
+        self._progress_terms = tuple(
+            str(item).lower() for item in routing.get("progress_terms") or []
+        )
+        self._inability_terms = tuple(
+            str(item).lower() for item in routing.get("inability_terms") or []
+        )
+        self._attachment_bug_terms = tuple(
+            str(item).lower() for item in routing.get("attachment_bug_terms") or []
+        )
+
+        matchers = data.get("matchers") or {}
+        self._billing_matchers = matchers.get("billing_templates") or {}
+        self._fault_repair_matchers = matchers.get("user_fault_repair") or {}
+        self._order_export_matchers = matchers.get("order_export") or {}
+
         knowledge = data.get("verified_knowledge") or {}
         self._billing = knowledge.get("billing_templates") or {}
+        self._fault_repair = knowledge.get("user_fault_repair") or {}
+        self._order_management = knowledge.get("order_management") or {}
 
     @staticmethod
     def _language_key(language: str) -> str:
@@ -81,33 +99,101 @@ class ChargeReplyPolicy:
             return PolicyReply(str(reply), "security_refusal")
         return None
 
+    @staticmethod
+    def _terms(config: dict[str, Any], key: str) -> tuple[str, ...]:
+        return tuple(str(item).lower() for item in config.get(key) or [])
+
+    @staticmethod
+    def _has_any(query: str, terms: tuple[str, ...]) -> bool:
+        return any(term in query for term in terms)
+
+    def _reply(
+        self,
+        replies: dict[str, Any],
+        key: str,
+        language: str,
+        route: str,
+    ) -> PolicyReply | None:
+        lang = self._language_key(language)
+        reply = replies.get(f"{key}_{lang}") or replies.get(f"{key}_zh")
+        return PolicyReply(str(reply), route) if reply else None
+
+    def _fault_repair_response(self, text: str, language: str) -> PolicyReply | None:
+        query = (text or "").lower()
+        match_terms = self._terms(self._fault_repair_matchers, "match_terms")
+        intent_terms = self._terms(self._fault_repair_matchers, "intent_terms")
+        if not self._has_any(query, match_terms) or not self._has_any(query, intent_terms):
+            return None
+        return self._reply(
+            self._fault_repair.get("replies") or {},
+            "location",
+            language,
+            "verified_user_fault_repair",
+        )
+
     def _billing_response(self, text: str, language: str) -> PolicyReply | None:
         query = (text or "").lower()
-        match_terms = tuple(str(item).lower() for item in self._billing.get("match_terms") or [])
-        if not any(term in query for term in match_terms):
+        match_terms = self._terms(self._billing_matchers, "match_terms")
+        if not self._has_any(query, match_terms):
             return None
 
-        setup_terms = tuple(str(item).lower() for item in self._billing.get("setup_terms") or [])
-        location_terms = tuple(str(item).lower() for item in self._billing.get("location_terms") or [])
-        is_setup = any(term in query for term in setup_terms)
-        is_location = any(term in query for term in location_terms)
-        if not is_setup and not is_location:
-            return None
-
-        lang = self._language_key(language)
         replies = self._billing.get("replies") or {}
-        if is_setup:
-            key = f"setup_{lang}"
-            route = "verified_billing_setup"
-        else:
-            holiday_terms = tuple(
-                str(item).lower() for item in self._billing.get("holiday_terms") or []
-            )
-            prefix = "holiday_location" if any(term in query for term in holiday_terms) else "location"
-            key = f"{prefix}_{lang}"
-            route = f"verified_billing_{prefix}"
-        reply = replies.get(key) or replies.get(key.rsplit("_", 1)[0] + "_zh")
-        return PolicyReply(str(reply), route) if reply else None
+        intent_order = (
+            ("replacement_terms", "replacement", "verified_billing_replacement"),
+            ("activation_terms", "activation", "verified_billing_activation"),
+            ("association_terms", "association", "verified_billing_association"),
+            ("startup_balance_terms", "startup_balance", "verified_billing_startup_balance"),
+            ("time_of_use_terms", "time_of_use", "verified_billing_time_of_use"),
+            ("setup_terms", "setup", "verified_billing_setup"),
+            ("location_terms", "location", "verified_billing_location"),
+        )
+        for term_key, reply_key, route in intent_order:
+            if self._has_any(query, self._terms(self._billing_matchers, term_key)):
+                return self._reply(replies, reply_key, language, route)
+
+        # A billing-template query that is not covered by a verified intent is
+        # stopped here instead of being allowed to invent fields or prerequisites.
+        return self._reply(
+            replies,
+            "guarded",
+            language,
+            "verified_billing_guarded",
+        )
+
+    def _order_export_response(self, text: str, language: str) -> PolicyReply | None:
+        query = (text or "").lower()
+        match_terms = self._terms(self._order_export_matchers, "match_terms")
+        order_terms = self._terms(self._order_export_matchers, "order_terms")
+        if not self._has_any(query, match_terms) or not self._has_any(query, order_terms):
+            return None
+        return self._reply(
+            self._order_management.get("replies") or {},
+            "export",
+            language,
+            "verified_order_export",
+        )
+
+    def route_target(
+        self,
+        *,
+        text: str,
+        active_app: str,
+        has_attachments: bool,
+    ) -> str | None:
+        """Return a deterministic app target for obvious Bug/progress input."""
+        if active_app == "B":
+            return None
+        query = (text or "").strip().lower()
+        if self._has_any(query, self._progress_terms):
+            return "B"
+        if self._has_any(query, self._bug_terms):
+            return "B"
+        capability_question = any(term in query for term in ("能不能", "可不可以", "是否可以"))
+        if not capability_question and self._has_any(query, self._inability_terms):
+            return "B"
+        if has_attachments and self._has_any(query, self._attachment_bug_terms):
+            return "B"
+        return None
 
     def _is_vague(self, text: str) -> bool:
         query = (text or "").strip().lower()
@@ -165,10 +251,18 @@ class ChargeReplyPolicy:
     ) -> PolicyReply | None:
         if response := self._security_response(text, language):
             return response
-        if active_app != "A" or has_attachments:
+        if has_attachments:
             return None
+        if response := self._fault_repair_response(text, language):
+            return response
+        if response := self._order_export_response(text, language):
+            return response
         if response := self._billing_response(text, language):
             return response
+        if active_app != "A":
+            # A live B draft owns vague follow-ups. Do not let the H5-level
+            # clarification counter override B's business state machine.
+            return None
         return self._vague_response(
             text=text,
             language=language,

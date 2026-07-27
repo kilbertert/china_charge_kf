@@ -18,7 +18,6 @@ def test_duplicate_progress_and_new_clue_stay_in_one_customer_session() -> None:
     router._client_b = DifyClient("http://dify.test/v1", "app-test-b", "test-user")
 
     responses = [
-        {"answer": "<!--SYS:SWITCH_TO_BUG-->", "conversation_id": "conv-a"},
         {
             "answer": "已进入问题追踪流程，请确认问题信息。",
             "conversation_id": "conv-b",
@@ -58,11 +57,11 @@ def test_duplicate_progress_and_new_clue_stay_in_one_customer_session() -> None:
         assert new_clue.status_code == 200
         assert "当前进度如下" in progress.json()["assistant_text"]
         assert "重新查重" in new_clue.json()["assistant_text"]
-        assert run.await_count == 4
+        assert run.await_count == 3
         assert run.await_args_list[0].kwargs["conversation_id"] == ""
-        assert run.await_args_list[1].kwargs["conversation_id"] == ""
+        assert run.await_args_list[1].kwargs["conversation_id"] == "conv-b"
         assert run.await_args_list[2].kwargs["conversation_id"] == "conv-b"
-        assert run.await_args_list[3].kwargs["conversation_id"] == "conv-b"
+        assert router._store[session_id]["state"]["conv_a"] == ""
         assert router._store[session_id]["state"]["active"] == "B"
     finally:
         router._store.pop(session_id, None)

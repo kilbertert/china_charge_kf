@@ -9,6 +9,7 @@ pass.
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -220,8 +221,9 @@ def patch_charge_b(graph: dict) -> None:
     query = (query_text or "").strip()
     keyword = query
     progress_patterns = (
-        r"(?:这个问题)?(?:解决|处理|修复)(?:了)?吗[？?]*$",
-        r"(?:现在|当前)?(?:处理)?(?:到哪了|进度如何|什么进度|有结果了吗)[？?]*$",
+        r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:解决|处理|修复)(?:了)?吗[？?]*$",
+        r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:处理)?(?:到哪了|到什么进度|进度如何|进展如何|当前进度|处理进度)[？?]*$",
+        r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:有结果|有进展)(?:了)?吗[？?]*$",
     )
     for pattern in progress_patterns:
         cleaned = re.sub(pattern, "", keyword).strip(" ，,。.!！?？")
@@ -273,11 +275,23 @@ def patch_charge_b(graph: dict) -> None:
     def norm(value: str) -> str:
         return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (value or "").lower())
 
+    def strip_progress(value: str) -> str:
+        cleaned = norm(value)
+        patterns = (
+            r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:解决|处理|修复)(?:了)?吗$",
+            r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:处理)?(?:到哪了|到什么进度|进度如何|进展如何|当前进度|处理进度)$",
+            r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:有结果|有进展)(?:了)?吗$",
+        )
+        for pattern in patterns:
+            updated = re.sub(pattern, "", cleaned)
+            if updated != cleaned:
+                return updated
+        return cleaned
+
     def local_score(hit: dict, query: str) -> float:
         module = norm(hit.get("module") or "")
         record = norm(hit.get("op_desc") or hit.get("summary") or "")
-        q = norm(query)
-        q = re.sub(r"(?:这个问题)?(?:解决|处理|修复)(?:了)?吗$", "", q)
+        q = strip_progress(query)
         combined = module + record
         if not q or not record:
             return 0.0
@@ -569,12 +583,25 @@ def patch_charge_b(graph: dict) -> None:
     def norm(value: str) -> str:
         return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (value or "").lower())
 
+    def strip_progress(value: str) -> str:
+        cleaned = norm(value)
+        patterns = (
+            r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:解决|处理|修复)(?:了)?吗$",
+            r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:处理)?(?:到哪了|到什么进度|进度如何|进展如何|当前进度|处理进度)$",
+            r"(?:这个问题|该问题)?(?:现在|目前|当前)?(?:有结果|有进展)(?:了)?吗$",
+        )
+        for pattern in patterns:
+            updated = re.sub(pattern, "", cleaned)
+            if updated != cleaned:
+                return updated
+        return cleaned
+
     def local_score(hit: dict) -> float:
         record_module = norm(hit.get("module") or "")
         record_op = norm(hit.get("op_desc") or hit.get("summary") or "")
         query_module = norm(cv_mokuai)
-        query_op = norm(cv_feedback_zh)
-        query_keyword = norm(cv_search_keyword)
+        query_op = strip_progress(cv_feedback_zh)
+        query_keyword = strip_progress(cv_search_keyword)
         if record_module and record_module in record_op:
             record_op = record_op.replace(record_module, "", 1)
         if query_module and query_module in query_op:
@@ -601,7 +628,8 @@ def patch_charge_b(graph: dict) -> None:
     for h in hits:
         try:
             raw_score = h.get("match_score")
-            score = float(raw_score) if raw_score is not None else local_score(h)
+            local = local_score(h)
+            score = max(float(raw_score), local) if raw_score is not None else local
             threshold = float(h.get("match_threshold") or 125)
         except (TypeError, ValueError):
             score, threshold = local_score(h), 125
@@ -645,7 +673,7 @@ def patch_charge_b(graph: dict) -> None:
     ] = """def main(row_summary: str, query_text: str) -> dict:
     s = (row_summary or "").strip() or "该记录当前暂无详细状态"
     q = (query_text or "").strip()
-    progress_terms = ("解决了吗", "处理了吗", "有结果吗", "当前进度", "处理进度", "怎么样了", "修复了吗")
+    progress_terms = ("解决了吗", "处理了吗", "有结果吗", "有结果了吗", "有进展了吗", "当前进度", "处理进度", "什么进度", "进度如何", "进展如何", "处理到哪了", "怎么样了", "修复了吗")
     if any(term in q for term in progress_terms):
         return {"answer_text": "您反馈的问题当前进度如下：\\n" + s}
     return {"answer_text": "您好,这个问题我们之前已经记录在跟进中了:\\n" + s + "\\n\\n请问您这次反馈的是同一个问题吗?"}"""
@@ -709,6 +737,216 @@ def patch_charge_b(graph: dict) -> None:
 def patch_charge_a(graph: dict) -> None:
     nodes = node_map(graph)
 
+    # The visual model is only useful when a real attachment exists. Keep the
+    # same image description contract for direct Dify consumers, but bypass the
+    # model completely for ordinary text requests.
+    add_code_node(
+        graph,
+        "6001-file-check",
+        "检查是否包含图片",
+        """def main(files: list) -> dict:
+    return {"has_image": any(isinstance(item, dict) and item.get("type") == "image" for item in (files or []))}""",
+        {"has_image": {"children": None, "type": "boolean"}},
+        [{"variable": "files", "value_selector": ["sys", "files"]}],
+        (-700, 0),
+    )
+    file_gate = clone_node(
+        graph, "6003", "6001-file-gate", "是否包含图片", (-620, 0)
+    )
+    file_gate["data"]["cases"] = [
+        {
+            "case_id": "has_files",
+            "conditions": [
+                {
+                    "comparison_operator": "is",
+                    "id": "cond_has_files",
+                    "value": True,
+                    "varType": "boolean",
+                    "variable_selector": ["6001-file-check", "has_image"],
+                }
+            ],
+            "logical_operator": "and",
+        },
+        {
+            "case_id": "default",
+            "conditions": [
+                {
+                    "comparison_operator": "is",
+                    "id": "cond_no_files",
+                    "value": False,
+                    "varType": "boolean",
+                    "variable_selector": ["6001-file-check", "has_image"],
+                }
+            ],
+            "logical_operator": "and",
+        },
+    ]
+    vision = clone_node(graph, "6111", "6100", "图片内容识别", (-360, -120))
+    vision["data"].update(
+        {
+            "type": "llm",
+            "title": "图片内容识别",
+            "model": {
+                "mode": "chat",
+                "name": "Doubao-Seed-2.0-lite",
+                "provider": "langgenius/volcengine_maas/volcengine_maas",
+            },
+            "context": {"enabled": False, "variable_selector": []},
+            "prompt_template": [
+                {
+                    "id": "v-sys",
+                    "role": "system",
+                    "text": "识别图片中的可见文字，并使用与图片文字相同的语言输出一句话。只保留设备编号、故障、界面内容和报错等关键信息。",
+                },
+                {
+                    "id": "v-user",
+                    "role": "user",
+                    "text": "Please identify the image content.",
+                },
+            ],
+            "vision": {
+                "enabled": True,
+                "configs": {"detail": "high", "variable_selector": ["sys", "files"]},
+            },
+        }
+    )
+    add_code_node(
+        graph,
+        "6100-no-image",
+        "无图直接通过",
+        'def main() -> dict:\n    return {"text": "无图"}',
+        {"text": {"children": None, "type": "string"}},
+        [],
+        (-360, 100),
+    )
+    image_merge = clone_node(
+        graph, "6098", "6100-merge", "汇聚图片描述", (-100, 0)
+    )
+    image_merge["data"]["title"] = "汇聚图片描述"
+    image_merge["data"]["variables"] = [
+        ["6100", "text"],
+        ["6100-no-image", "text"],
+    ]
+    image_merge["data"]["output_type"] = "string"
+    image_merge["data"]["outputs"] = {
+        "output": {"children": None, "type": "string"}
+    }
+    nodes = node_map(graph)
+    nodes["6002"]["data"]["code"] = """def main(query: str, input_language: str, image_desc: str) -> dict:
+    text = (query or "").strip()
+    desc = (image_desc or "").strip()
+    query_text = f"{text} [image content: {desc}]" if text and desc and desc != "无图" else (f"[image content: {desc}]" if desc and desc != "无图" else text)
+    if input_language and input_language.strip():
+        lang = input_language.strip()
+    else:
+        cjk = sum(1 for c in query_text if '\u4e00' <= c <= '\u9fff')
+        thai = any(0x0E00 <= ord(c) <= 0x0E7F for c in query_text)
+        devanagari = any(0x0900 <= ord(c) <= 0x097F for c in query_text)
+        vi_chars = "ăâđêôơưĂÂĐÊÔƠƯáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỵỷỹ"
+        if thai:
+            lang = "th"
+        elif devanagari:
+            lang = "ne"
+        elif any(c in vi_chars for c in query_text):
+            lang = "vi"
+        elif cjk > 0:
+            lang = "zh"
+        else:
+            lang = "en"
+    return {"query_text": query_text, "language": lang}"""
+    nodes["6002"]["data"]["variables"] = [
+        {"value_selector": ["sys", "query"], "variable": "query"},
+        {"value_selector": ["6001", "input_language"], "variable": "input_language"},
+        {"value_selector": ["6100-merge", "output"], "variable": "image_desc"},
+    ]
+    for edge_id in ("e-6001-6002", "e-6001-6100", "e-6100-6002"):
+        remove_edge(graph, edge_id)
+    remove_edge(graph, "e-6001-file-gate")
+    add_edge(graph, "e-6001-file-check", "6001", "source", "6001-file-check")
+    add_edge(
+        graph,
+        "e-file-check-gate",
+        "6001-file-check",
+        "source",
+        "6001-file-gate",
+    )
+    add_edge(graph, "e-file-gate-has-6100", "6001-file-gate", "has_files", "6100")
+    add_edge(
+        graph,
+        "e-file-gate-default-no-image",
+        "6001-file-gate",
+        "default",
+        "6100-no-image",
+    )
+    add_edge(graph, "e-6100-merge", "6100", "source", "6100-merge")
+    add_edge(
+        graph,
+        "e-no-image-merge",
+        "6100-no-image",
+        "source",
+        "6100-merge",
+    )
+    add_edge(graph, "e-image-merge-6002", "6100-merge", "source", "6002")
+
+    early_bug_code = """def main(query_text: str) -> dict:
+    query = (query_text or "").strip().lower()
+    progress = ("解决了吗", "修复了吗", "处理了吗", "有结果了吗", "有进展了吗", "当前进度", "处理进度", "进度如何", "进展如何", "处理到哪了", "处理到什么进度")
+    failures = ("报错", "失败", "异常", "用不了", "不生效", "没反应", "丢失", "崩溃", "闪退", "空白", "充不上", "中断")
+    capability = any(term in query for term in ("能不能", "可不可以", "是否可以"))
+    inability = not capability and any(term in query for term in ("无法", "不能"))
+    return {"is_bug": any(term in query for term in progress + failures) or inability}"""
+    add_code_node(
+        graph,
+        "6002-bug-route",
+        "显式故障/进度早路由",
+        early_bug_code,
+        {"is_bug": {"children": None, "type": "boolean"}},
+        [{"variable": "query_text", "value_selector": ["6002", "query_text"]}],
+        (-220, 0),
+    )
+    early_if = clone_node(
+        graph, "6003", "6002-bug-if", "显式故障直接转B", (20, 0)
+    )
+    early_if["data"]["cases"] = [
+        {
+            "case_id": "bug",
+            "conditions": [
+                {
+                    "comparison_operator": "is",
+                    "id": "cond_explicit_bug",
+                    "value": True,
+                    "varType": "boolean",
+                    "variable_selector": ["6002-bug-route", "is_bug"],
+                }
+            ],
+            "logical_operator": "and",
+        },
+        {
+            "case_id": "default",
+            "conditions": [
+                {
+                    "comparison_operator": "is",
+                    "id": "cond_normal_query",
+                    "value": False,
+                    "varType": "boolean",
+                    "variable_selector": ["6002-bug-route", "is_bug"],
+                }
+            ],
+            "logical_operator": "and",
+        },
+    ]
+    remove_edge(graph, "e-6002-6003")
+    add_edge(graph, "e-6002-bug-route", "6002", "source", "6002-bug-route")
+    add_edge(graph, "e-bug-route-if", "6002-bug-route", "source", "6002-bug-if")
+    add_edge(
+        graph,
+        "e-bug-if-bug-switch",
+        "6002-bug-if",
+        "bug",
+        "6201-switch-bug",
+    )
+    add_edge(graph, "e-bug-if-default-6003", "6002-bug-if", "default", "6003")
+
     # FAQ remains a fast answer, but explicit faults/progress queries must reach B.
     faq_gate_code = """def main(faq_text: str, query_text: str) -> dict:
     answer = faq_text or ""
@@ -762,6 +1000,47 @@ def patch_charge_a(graph: dict) -> None:
     nodes["6220"]["data"]["dataset_ids"] = ["39659847-228a-402c-a18a-3ce9334565a4"]
     nodes["6230"]["data"]["dataset_ids"] = ["b310c0a9-7b5a-4793-b8d0-0a111e3040d1"]
     nodes["6230"]["data"]["title"] = "C2 查询流程操作手册"
+
+    # Retrieval snippets are evidence, not permission to infer prerequisites.
+    # This guard is shared by every customer-facing A answer node.
+    fact_boundary = """
+
+【回答事实边界】
+- 只能输出检索片段明确支持的菜单、步骤、限制或功能；不得凭常识补充“必须先审核/先登录/先筛选”等前置条件。
+- 不得把“可能、通常、应当”改写成用户已经完成或尚未完成的事实，也不得承诺检索片段没有给出的结果、时效或产品能力。
+- 多端或多版本路径冲突时必须标明适用端；端类型不明时只给已确认的路径并请求补充端类型，不得混合菜单。
+- 检索片段不足以回答时，明确说明“该问题暂未收录”，不要用推测填空。
+""".strip()
+    for node_id in ("6111", "6212", "6221", "6231"):
+        prompt_template = nodes[node_id]["data"].get("prompt_template") or []
+        for item in prompt_template:
+            if item.get("role") == "system":
+                text = item.get("text", "")
+                if "【回答事实边界】" not in text:
+                    item["text"] = text.rstrip() + "\n\n" + fact_boundary
+    faq_prompt = nodes["6111"]["data"].get("prompt_template") or []
+    for item in faq_prompt:
+        if item.get("role") == "system":
+            item["text"] = item["text"].replace(
+                "如果检索到相关结果(即使问题不完全匹配),要整合已有内容给用户排查指引",
+                "只有检索片段直接支持用户问题时才整合回答；主题相近但不直接支持时按未收录处理",
+            )
+    menu_prompt = nodes["6212"]["data"].get("prompt_template") or []
+    for item in menu_prompt:
+        if item.get("role") == "system":
+            item["text"] = re.sub(
+                r"3\. 格式示例:.*?4\. 若检索结果为空",
+                "3. 按检索片段原文输出路径，不自行举例或补充菜单。\n4. 若检索结果为空",
+                item["text"],
+                flags=re.S,
+            )
+    process_prompt = nodes["6231"]["data"].get("prompt_template") or []
+    for item in process_prompt:
+        if item.get("role") == "system":
+            item["text"] = item["text"].replace(
+                "基于上下文,指出当前流程及前置流程可能缺失/未完成的操作步骤",
+                "只复述上下文明确记录的当前流程和步骤；上下文未明确记录的前置条件不得推测或写成用户待完成事项",
+            )
 
 
 def patch_file(path: Path, patcher) -> None:

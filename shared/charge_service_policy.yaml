@@ -1,0 +1,185 @@
+schema_version: 2
+
+security:
+  refuse_patterns:
+    - '(?i)(?:绕过权限|越权|提权|bypass.{0,20}(?:permission|authorization)|privilege.{0,10}escalat)'
+    - '(?i)(?:导出|显示|查看|告诉|获取|泄露|export|show|reveal|dump|get).{0,24}(?:管理员密码|密码|token|api[ _-]?key|secret|credential|凭据|密钥)'
+    - '(?i)(?:删除|清空|擦除|销毁|drop|delete|wipe|purge).{0,24}(?:所有|全部|全量|数据库|用户数据|用户账号|all|database|user data|accounts)'
+  reply:
+    zh: '我不能执行或指导绕过权限、批量删除数据，也不能提供或导出管理员密码、Token、密钥等凭据。请通过正式管理后台和审批流程，由有权限的人员操作；如果你是在处理故障或申请权限，请提供项目、账号角色和页面报错，我可以协助定位。'
+    en: 'I cannot execute or guide permission bypasses or bulk data deletion, and I cannot reveal or export administrator passwords, tokens, API keys, or other credentials. Use the approved administration and authorization process. For troubleshooting or an access request, provide the project, account role, and the exact page error.'
+
+clarification:
+  max_prompts: 2
+  vague_phrases:
+    - '这个'
+    - '那个'
+    - '这个怎么弄'
+    - '怎么弄'
+    - '怎么办'
+    - '怎么回事'
+    - '有问题'
+    - '不好用'
+    - '不行'
+    - '帮我看看'
+    - '看看这个'
+    - '弄不了'
+    - '不懂'
+    - 'this'
+    - 'how do i do this'
+    - 'it does not work'
+    - "it doesn't work"
+    - 'help me'
+  domain_terms:
+    - '计费'
+    - '订单'
+    - '设备'
+    - '场地'
+    - '站点'
+    - '用户'
+    - '财务'
+    - '报表'
+    - '充电'
+    - '支付'
+    - '退款'
+    - '优惠券'
+    - '发票'
+    - '登录'
+    - '注册'
+    - '白名单'
+    - '结算'
+    - '故障'
+    - '报错'
+    - 'billing'
+    - 'order'
+    - 'charger'
+    - 'station'
+    - 'payment'
+    - 'refund'
+    - 'invoice'
+    - 'login'
+  prompts:
+    zh:
+      - '请补充具体对象和问题。例如：计费模板入口在哪、订单支付失败、设备白名单如何添加。'
+      - '仍缺少关键对象。请按“功能或页面 + 想做什么 + 当前结果或报错”描述；如果是故障，也可以直接上传截图。'
+    en:
+      - 'Please name the feature and the exact issue, for example: billing template location, order payment failure, or adding a device allowlist entry.'
+      - 'The key object is still missing. Describe the feature or page, the intended action, and the current result or error. You can also upload a screenshot for a fault.'
+  exhausted_reply:
+    zh: '连续两次仍无法确认具体问题，本轮不再重复追问。请重新发送一条完整描述：“功能或页面 + 操作 + 当前结果或报错”；故障场景可附截图。'
+    en: 'The issue is still unclear after two prompts, so I will not repeat the same question. Send one complete description: feature or page + action + current result or error. Attach a screenshot for a fault if available.'
+
+routing:
+  bug_terms:
+    - '报错'
+    - '失败'
+    - '异常'
+    - '用不了'
+    - '不生效'
+    - '没反应'
+    - '丢失'
+    - '崩溃'
+    - '闪退'
+    - '空白'
+    - '充不上'
+    - '中断'
+  inability_terms:
+    - '无法'
+    - '不能'
+  progress_terms:
+    - '解决了吗'
+    - '修复了吗'
+    - '处理了吗'
+    - '有结果了吗'
+    - '有进展了吗'
+    - '当前进度'
+    - '处理进度'
+    - '进度如何'
+    - '进展如何'
+    - '处理到哪了'
+    - '处理到什么进度'
+  attachment_bug_terms:
+    - '截图'
+    - '页面有问题'
+    - '请看图片'
+    - '请看图'
+
+matchers:
+  billing_templates:
+    match_terms:
+      - '计费模板'
+      - '计费规则'
+      - '费率模板'
+      - 'billing template'
+    location_terms:
+      - '在哪'
+      - '哪里'
+      - '入口'
+      - '位置'
+      - '怎么找'
+      - 'where'
+      - 'location'
+    setup_terms:
+      - '怎么设置'
+      - '如何设置'
+      - '怎么配置'
+      - '如何配置'
+      - '怎么创建'
+      - '如何创建'
+      - '新增'
+      - 'set up'
+      - 'configure'
+      - 'create'
+    association_terms:
+      - '关联计费模板'
+      - '关联模板'
+      - '绑定计费模板'
+      - '绑定模板'
+      - '给站点关联'
+      - '给场地关联'
+    activation_terms:
+      - '创建后就直接生效'
+      - '创建后直接生效'
+      - '创建后生效'
+      - '是否直接生效'
+      - '关联站点才生效'
+    replacement_terms:
+      - '更换计费模板后多久生效'
+      - '更换模板后多久生效'
+      - '替换计费模板后多久生效'
+      - '换模板后多久生效'
+    time_of_use_terms:
+      - '分时计费'
+      - '尖峰平谷'
+      - '时段计费'
+    startup_balance_terms:
+      - '最低启动金额'
+      - '最低激活金额'
+      - '余额不足'
+      - 'minimum start amount'
+  user_fault_repair:
+    match_terms:
+      - '故障报修'
+      - 'fault repair'
+    intent_terms:
+      - '入口'
+      - '在哪'
+      - '哪里'
+      - '链接'
+      - '怎么提交'
+      - '如何提交'
+      - '怎么用'
+      - 'where'
+      - 'link'
+  order_export:
+    match_terms:
+      - '订单导出'
+      - '导出订单'
+      - '订单怎么导出'
+      - '订单如何导出'
+      - '订单能不能导出'
+      - '订单可以导出吗'
+      - 'order export'
+    order_terms:
+      - '订单'
+      - 'order'

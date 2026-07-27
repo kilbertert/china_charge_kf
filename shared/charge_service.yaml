@@ -1,121 +1,259 @@
-version: 1
-updated_at: '2026-07-27'
-
+schema_version: 2
 security:
   refuse_patterns:
-    - '(?i)(?:绕过权限|越权|提权|bypass.{0,20}(?:permission|authorization)|privilege.{0,10}escalat)'
-    - '(?i)(?:导出|显示|查看|告诉|获取|泄露|export|show|reveal|dump|get).{0,24}(?:管理员密码|密码|token|api[ _-]?key|secret|credential|凭据|密钥)'
-    - '(?i)(?:删除|清空|擦除|销毁|drop|delete|wipe|purge).{0,24}(?:所有|全部|全量|数据库|用户数据|用户账号|all|database|user data|accounts)'
+  - (?i)(?:绕过权限|越权|提权|bypass.{0,20}(?:permission|authorization)|privilege.{0,10}escalat)
+  - (?i)(?:导出|显示|查看|告诉|获取|泄露|export|show|reveal|dump|get).{0,24}(?:管理员密码|密码|token|api[ _-]?key|secret|credential|凭据|密钥)
+  - (?i)(?:删除|清空|擦除|销毁|drop|delete|wipe|purge).{0,24}(?:所有|全部|全量|数据库|用户数据|用户账号|all|database|user data|accounts)
   reply:
-    zh: '我不能执行或指导绕过权限、批量删除数据，也不能提供或导出管理员密码、Token、密钥等凭据。请通过正式管理后台和审批流程，由有权限的人员操作；如果你是在处理故障或申请权限，请提供项目、账号角色和页面报错，我可以协助定位。'
-    en: 'I cannot execute or guide permission bypasses or bulk data deletion, and I cannot reveal or export administrator passwords, tokens, API keys, or other credentials. Use the approved administration and authorization process. For troubleshooting or an access request, provide the project, account role, and the exact page error.'
-
+    zh: 我不能执行或指导绕过权限、批量删除数据，也不能提供或导出管理员密码、Token、密钥等凭据。请通过正式管理后台和审批流程，由有权限的人员操作；如果你是在处理故障或申请权限，请提供项目、账号角色和页面报错，我可以协助定位。
+    en: I cannot execute or guide permission bypasses or bulk data deletion, and I cannot reveal or export administrator passwords, tokens, API keys, or other credentials. Use the approved administration and authorization process. For troubleshooting or an access request, provide the project, account role, and the exact page error.
 clarification:
   max_prompts: 2
   vague_phrases:
-    - '这个'
-    - '那个'
-    - '这个怎么弄'
-    - '怎么弄'
-    - '怎么办'
-    - '怎么回事'
-    - '有问题'
-    - '不好用'
-    - '不行'
-    - '帮我看看'
-    - '看看这个'
-    - '弄不了'
-    - '不懂'
-    - 'this'
-    - 'how do i do this'
-    - 'it does not work'
-    - "it doesn't work"
-    - 'help me'
+  - 这个
+  - 那个
+  - 这个怎么弄
+  - 怎么弄
+  - 怎么办
+  - 怎么回事
+  - 有问题
+  - 不好用
+  - 不行
+  - 帮我看看
+  - 看看这个
+  - 弄不了
+  - 不懂
+  - this
+  - how do i do this
+  - it does not work
+  - it doesn't work
+  - help me
   domain_terms:
-    - '计费'
-    - '订单'
-    - '设备'
-    - '场地'
-    - '站点'
-    - '用户'
-    - '财务'
-    - '报表'
-    - '充电'
-    - '支付'
-    - '退款'
-    - '优惠券'
-    - '发票'
-    - '登录'
-    - '注册'
-    - '白名单'
-    - '结算'
-    - '故障'
-    - '报错'
-    - 'billing'
-    - 'order'
-    - 'charger'
-    - 'station'
-    - 'payment'
-    - 'refund'
-    - 'invoice'
-    - 'login'
+  - 计费
+  - 订单
+  - 设备
+  - 场地
+  - 站点
+  - 用户
+  - 财务
+  - 报表
+  - 充电
+  - 支付
+  - 退款
+  - 优惠券
+  - 发票
+  - 登录
+  - 注册
+  - 白名单
+  - 结算
+  - 故障
+  - 报错
+  - billing
+  - order
+  - charger
+  - station
+  - payment
+  - refund
+  - invoice
+  - login
   prompts:
     zh:
-      - '请补充具体对象和问题。例如：计费模板入口在哪、订单支付失败、设备白名单如何添加。'
-      - '仍缺少关键对象。请按“功能或页面 + 想做什么 + 当前结果或报错”描述；如果是故障，也可以直接上传截图。'
+    - 请补充具体对象和问题。例如：计费模板入口在哪、订单支付失败、设备白名单如何添加。
+    - 仍缺少关键对象。请按“功能或页面 + 想做什么 + 当前结果或报错”描述；如果是故障，也可以直接上传截图。
     en:
-      - 'Please name the feature and the exact issue, for example: billing template location, order payment failure, or adding a device allowlist entry.'
-      - 'The key object is still missing. Describe the feature or page, the intended action, and the current result or error. You can also upload a screenshot for a fault.'
+    - 'Please name the feature and the exact issue, for example: billing template location, order payment failure, or adding a device allowlist entry.'
+    - The key object is still missing. Describe the feature or page, the intended action, and the current result or error. You can also upload a screenshot for a fault.
   exhausted_reply:
-    zh: '连续两次仍无法确认具体问题，本轮不再重复追问。请重新发送一条完整描述：“功能或页面 + 操作 + 当前结果或报错”；故障场景可附截图。'
+    zh: 连续两次仍无法确认具体问题，本轮不再重复追问。请重新发送一条完整描述：“功能或页面 + 操作 + 当前结果或报错”；故障场景可附截图。
     en: 'The issue is still unclear after two prompts, so I will not repeat the same question. Send one complete description: feature or page + action + current result or error. Attach a screenshot for a fault if available.'
-
-verified_knowledge:
+routing:
+  bug_terms:
+  - 报错
+  - 失败
+  - 异常
+  - 用不了
+  - 不生效
+  - 没反应
+  - 丢失
+  - 崩溃
+  - 闪退
+  - 空白
+  - 充不上
+  - 中断
+  inability_terms:
+  - 无法
+  - 不能
+  progress_terms:
+  - 解决了吗
+  - 修复了吗
+  - 处理了吗
+  - 有结果了吗
+  - 有进展了吗
+  - 当前进度
+  - 处理进度
+  - 进度如何
+  - 进展如何
+  - 处理到哪了
+  - 处理到什么进度
+  attachment_bug_terms:
+  - 截图
+  - 页面有问题
+  - 请看图片
+  - 请看图
+matchers:
   billing_templates:
     match_terms:
-      - '计费模板'
-      - '计费规则'
-      - '费率模板'
-      - 'billing template'
+    - 计费模板
+    - 计费规则
+    - 费率模板
+    - billing template
     location_terms:
-      - '在哪'
-      - '哪里'
-      - '入口'
-      - '位置'
-      - '怎么找'
-      - 'where'
-      - 'location'
+    - 在哪
+    - 哪里
+    - 入口
+    - 位置
+    - 怎么找
+    - where
+    - location
     setup_terms:
-      - '怎么设置'
-      - '如何设置'
-      - '怎么配置'
-      - '如何配置'
-      - '怎么创建'
-      - '如何创建'
-      - '新增'
-      - 'set up'
-      - 'configure'
-      - 'create'
-    holiday_terms:
-      - '节日'
-      - 'holiday'
-    standard_path:
-      - '充电桩'
-      - '计费模板管理'
-    holiday_path:
-      - '充电桩'
-      - '场地设置'
+    - 怎么设置
+    - 如何设置
+    - 怎么配置
+    - 如何配置
+    - 怎么创建
+    - 如何创建
+    - 新增
+    - set up
+    - configure
+    - create
+    association_terms:
+    - 关联计费模板
+    - 关联模板
+    - 绑定计费模板
+    - 绑定模板
+    - 给站点关联
+    - 给场地关联
+    activation_terms:
+    - 创建后就直接生效
+    - 创建后直接生效
+    - 创建后生效
+    - 是否直接生效
+    - 关联站点才生效
+    replacement_terms:
+    - 更换计费模板后多久生效
+    - 更换模板后多久生效
+    - 替换计费模板后多久生效
+    - 换模板后多久生效
+    time_of_use_terms:
+    - 分时计费
+    - 尖峰平谷
+    - 时段计费
+    startup_balance_terms:
+    - 最低启动金额
+    - 最低激活金额
+    - 余额不足
+    - minimum start amount
+  user_fault_repair:
+    match_terms:
+    - 故障报修
+    - fault repair
+    intent_terms:
+    - 入口
+    - 在哪
+    - 哪里
+    - 链接
+    - 怎么提交
+    - 如何提交
+    - 怎么用
+    - where
+    - link
+  order_export:
+    match_terms:
+    - 订单导出
+    - 导出订单
+    - 订单怎么导出
+    - 订单如何导出
+    - 订单能不能导出
+    - 订单可以导出吗
+    - order export
+    order_terms:
+    - 订单
+    - order
+version: 2
+knowledge_revision: dd9bfaf09eb370c3
+generated_sources:
+- path: Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/常见问题解答.xlsx
+  sha256: 56ce4b1239b7b6d4da76e487ef02a50380f31b7739cf1987423bb3b67d405af9
+- path: Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/sys_menu_整理后.xlsx
+  sha256: 75f8e39c4846ff0c777526f1f302bc4f41274a4ad63ddd04ff25945514d9d94a
+- path: Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/趋势云-标准充电桩功能清单V2.4.1-调整家充功能清单.xlsx
+  sha256: d3a7e65cfdd22d88b62385e88606e16fc84b6c2b6321691a200dcb6f0e312a97
+- path: Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/Standard Operating Manual for Charging Piles.docx
+  sha256: d0f1a982430255dcdd540e4280250456ba90b65b1923ac5a0bee2dcdb7ebb200
+verified_knowledge:
+  billing_templates:
+    standard_pc_path:
+    - 充电桩
+    - 计费管理
+    - 充电计费模板
+    creation_steps_pc:
+    - 进入充电桩 > 计费管理 > 充电计费模板
+    - 点击添加模板
+    - 选择分时计费（尖峰平谷）并按页面设置时段、电费和服务费
+    association_steps_butler:
+    - 场地审核通过后进入管家端“我的场地”
+    - 选择场地进入详情页
+    - 进入计费设置，选择所需模板并确认保存
+    activation_rule: 计费模板创建后需关联对应站点方可生效，单个站点可同时绑定充电计费、占位费、预约费等多类计费模板。
+    replacement_rule: 模板更换后即时生效，正在进行中的充电订单不受影响，订单结束后产生的新订单按新模板计费。
+    time_of_use_rule: 我们支持尖峰平谷的时段设置，以及自定义时段设置；并且可以在节假日日期可配置不同日常的计费模板，每个时段可单独设置 Electricity Fee、Service Fee，时段不可重叠且需覆盖全天 24 小时。
+    startup_balance_rule: 当余额低于计费模板设置的 Duration minimum start amount 时，无法启动充电，需先完成充值后再操作。
+    guardrails:
+      minimum_start_amount: 最低启动金额用于判断用户余额是否足以发起充电，不是创建或关联计费模板的前置条件。
+      venue_audit: 管家端只有审核通过的场地才会显示在“我的场地”并可继续关联模板；这不是创建计费模板本身的前置条件。
+      legacy_paths:
+      - IOT > 站点管理 > 计费模板（新）
+      - IOT > 故障报修
     replies:
-      location_zh: '普通计费模板入口：充电桩 > 计费模板管理。节日计费模板入口：充电桩 > 场地设置。'
-      holiday_location_zh: '节日计费模板入口：充电桩 > 场地设置。普通计费模板则在：充电桩 > 计费模板管理。'
-      setup_zh: '普通计费模板请先进入：充电桩 > 计费模板管理；节日计费模板请进入：充电桩 > 场地设置。当前已核实的业务资料只确认这两个入口，尚未固化具体字段和生效前置条件，我不会把占位样例当成生产规则。请说明你要配置普通模板还是节日模板，并提供当前页面或版本，我再按真实界面继续。'
-      location_en: 'Standard billing templates are under Charging Pile > Billing Template Management. Holiday billing templates are under Charging Pile > Site Settings.'
-      holiday_location_en: 'Holiday billing templates are under Charging Pile > Site Settings. Standard billing templates are under Charging Pile > Billing Template Management.'
-      setup_en: 'Open Charging Pile > Billing Template Management for a standard template, or Charging Pile > Site Settings for a holiday template. These are the only verified paths in the current business materials; exact fields and activation prerequisites are not yet established as production rules. Specify the template type and provide the current page or product version for exact steps.'
+      location_zh: PC后台普通汽车充电计费模板入口：充电桩 > 计费管理 > 充电计费模板。不同端或旧版本菜单可能不同，如你使用的不是PC后台，请补充端类型和当前页面。
+      location_en: On the PC admin portal, open Charging Pile > Billing Management > Charging Billing Template. Menus can differ by endpoint or legacy version, so the old IOT path should not be presented without that context.
+      setup_zh: PC后台：进入充电桩 > 计费管理 > 充电计费模板，点击添加模板，选择分时计费（尖峰平谷）并按页面设置时段、电费和服务费。模板创建后还需关联对应站点方可生效。最低启动金额是用户余额门槛，不是创建模板的前置条件。
+      setup_en: On the PC admin portal, open Charging Pile > Billing Management > Charging Billing Template, select Add Template, then configure time-of-use billing. A created template takes effect only after it is associated with the relevant station. The minimum start amount is a user-balance threshold, not a template-creation prerequisite.
+      association_zh: 管家端：场地审核通过后，进入“我的场地” > 选择场地进入详情页 > 计费设置 > 选择所需模板 > 确认保存。最低启动金额是用户发起充电时的余额门槛，不是关联模板的前置条件。
+      activation_zh: 计费模板创建后需关联对应站点方可生效，单个站点可同时绑定充电计费、占位费、预约费等多类计费模板。
+      replacement_zh: 模板更换后即时生效，正在进行中的充电订单不受影响，订单结束后产生的新订单按新模板计费。
+      time_of_use_zh: 我们支持尖峰平谷的时段设置，以及自定义时段设置；并且可以在节假日日期可配置不同日常的计费模板，每个时段可单独设置 Electricity Fee、Service Fee，时段不可重叠且需覆盖全天 24 小时。
+      startup_balance_zh: 当余额低于计费模板设置的 Duration minimum start amount 时，无法启动充电，需先完成充值后再操作。 最低启动金额不是创建或关联计费模板的前置条件。
+      guarded_zh: 关于计费模板，我只能按已核实资料回答：PC入口是“充电桩 > 计费管理 > 充电计费模板”；创建后需关联对应站点才生效；管家端在“我的场地 > 场地详情 > 计费设置”完成关联。最低启动金额是用户余额门槛，不是创建模板的前置条件。请说明你使用的是用户端、管家端还是PC后台，以及具体想确认哪一步。
     evidence:
-      - 'Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/06-architecture-framework.md'
-    excluded_unverified_claims:
-      - '最低激活金额是创建计费模板的必需前置条件'
-      - '站点必须先审核通过才能设置计费模板'
-      - '充电站-计费管理是统一生产入口'
-      - 'IOT-站点管理-计费模板（新）是统一生产入口'
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/常见问题解答.xlsx
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/sys_menu_整理后.xlsx
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/趋势云-标准充电桩功能清单V2.4.1-调整家充功能清单.xlsx
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/Standard Operating Manual for Charging Piles.docx
+  user_fault_repair:
+    endpoint: user
+    custom_link: /charge/pages/malfunction/malfunction
+    availability: 故障报修页需要由具体项目通过页面装修配置，是否开放以当前项目和应用版本为准。
+    steps:
+    - 进入已配置的故障报修页
+    - 填写表单
+    - 提交并等待平台审核后线下处理
+    replies:
+      location_zh: 用户端故障报修页需要由项目先完成页面装修配置；已配置时使用自定义链接 /charge/pages/malfunction/malfunction。进入后填写表单并提交，等待平台审核后线下处理。具体是否开放以当前项目和应用版本为准。
+    evidence:
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/Standard Operating Manual for Charging Piles.docx
+  order_management:
+    pc_path:
+    - 财务
+    - 订单中心
+    - 充电桩订单
+    - 新能源车充电订单
+    filter_rule: 支持按时间范围、站点、订单状态、充电起止时间等多维度筛选，并支持全量订单支持导出明细报表。
+    feature_rule: '国内PC端后台: 汽车充电订单导出 | 支持对当前充电订单查询结果数据进行导出；'
+    replies:
+      export_zh: PC后台新能源车充电订单入口：财务 > 订单中心 > 充电桩订单 > 新能源车充电订单。已核实可按时间范围、站点、订单状态、充电起止时间等维度筛选，并导出当前查询结果；FAQ资料同时说明支持全量订单导出明细报表，具体以当前订单类型页面为准。
+      export_en: On the PC admin portal, open Finance > Order Center > Charging Pile Orders > New Energy Vehicle Charging Orders. The verified materials support filtering by time range, station, order status, and charging start/end time, then exporting the current result; the FAQ also records full-order detail export, subject to the current order type page.
+    evidence:
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/常见问题解答.xlsx
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/sys_menu_整理后.xlsx
+    - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/趋势云-标准充电桩功能清单V2.4.1-调整家充功能清单.xlsx

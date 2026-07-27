@@ -56,7 +56,7 @@ def test_dify_image_failure_is_visible_and_never_retried_without_file() -> None:
         router._store.pop(sid, None)
 
 
-def test_image_is_reuploaded_when_router_switches_from_a_to_b() -> None:
+def test_obvious_bug_image_is_uploaded_directly_to_b() -> None:
     sid = "test-image-cross-app"
     old_dual = router._dual
     old_client_b = router._client_b
@@ -67,19 +67,13 @@ def test_image_is_reuploaded_when_router_switches_from_a_to_b() -> None:
             patch.object(
                 DifyClient,
                 "upload_file",
-                AsyncMock(side_effect=["upload-a", "upload-b"]),
+                AsyncMock(return_value="upload-b"),
             ) as upload,
             patch.object(
                 DifyClient,
                 "run_chatflow",
                 AsyncMock(
-                    side_effect=[
-                        {
-                            "answer": "<!--SYS:SWITCH_TO_BUG-->",
-                            "conversation_id": "conv-a",
-                        },
-                        {"answer": "已读取截图。", "conversation_id": "conv-b"},
-                    ]
+                    return_value={"answer": "已读取截图。", "conversation_id": "conv-b"}
                 ),
             ) as run,
             patch.object(
@@ -96,10 +90,9 @@ def test_image_is_reuploaded_when_router_switches_from_a_to_b() -> None:
 
         assert resp.status_code == 200
         assert resp.json()["assistant_text"] == "已读取截图。"
-        assert upload.await_count == 2
-        assert run.await_count == 2
-        assert run.await_args_list[0].kwargs["files"][0]["upload_file_id"] == "upload-a"
-        assert run.await_args_list[1].kwargs["files"][0]["upload_file_id"] == "upload-b"
+        assert upload.await_count == 1
+        assert run.await_count == 1
+        assert run.await_args.kwargs["files"][0]["upload_file_id"] == "upload-b"
         cache.assert_awaited_once_with("conv-b", sid, PNG_BYTES, "screen.png")
     finally:
         router._store.pop(sid, None)
@@ -118,19 +111,13 @@ def test_bug_image_cache_failure_is_visible_to_user() -> None:
             patch.object(
                 DifyClient,
                 "upload_file",
-                AsyncMock(side_effect=["upload-a", "upload-b"]),
+                AsyncMock(return_value="upload-b"),
             ),
             patch.object(
                 DifyClient,
                 "run_chatflow",
                 AsyncMock(
-                    side_effect=[
-                        {
-                            "answer": "<!--SYS:SWITCH_TO_BUG-->",
-                            "conversation_id": "conv-a",
-                        },
-                        {"answer": "请确认反馈。", "conversation_id": "conv-b"},
-                    ]
+                    return_value={"answer": "请确认反馈。", "conversation_id": "conv-b"}
                 ),
             ),
             patch.object(

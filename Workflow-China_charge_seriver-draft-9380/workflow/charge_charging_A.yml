@@ -137,15 +137,6 @@ workflow:
       - data:
           sourceType: start
           targetType: code
-        id: e-6001-6002
-        source: '6001'
-        sourceHandle: source
-        target: '6002'
-        targetHandle: target
-        type: custom
-      - data:
-          sourceType: start
-          targetType: code
         id: e-6001-6901
         source: '6001'
         sourceHandle: source
@@ -405,15 +396,6 @@ workflow:
         targetHandle: target
         type: custom
       - data:
-          sourceType: code
-          targetType: if-else
-        id: e-6002-6003
-        source: '6002'
-        sourceHandle: source
-        target: '6003'
-        targetHandle: target
-        type: custom
-      - data:
           sourceType: question-classifier
           targetType: code
         id: e-6201-d-switch
@@ -461,6 +443,105 @@ workflow:
         data:
           sourceType: code
           targetType: variable-aggregator
+      - data:
+          sourceType: if-else
+          targetType: llm
+        id: e-file-gate-has-6100
+        source: 6001-file-gate
+        sourceHandle: has_files
+        target: '6100'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: code
+        id: e-file-gate-default-no-image
+        source: 6001-file-gate
+        sourceHandle: default
+        target: 6100-no-image
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: llm
+          targetType: variable-aggregator
+        id: e-6100-merge
+        source: '6100'
+        sourceHandle: source
+        target: 6100-merge
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: variable-aggregator
+        id: e-no-image-merge
+        source: 6100-no-image
+        sourceHandle: source
+        target: 6100-merge
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: variable-aggregator
+          targetType: code
+        id: e-image-merge-6002
+        source: 6100-merge
+        sourceHandle: source
+        target: '6002'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: code
+        id: e-6002-bug-route
+        source: '6002'
+        sourceHandle: source
+        target: 6002-bug-route
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: if-else
+        id: e-bug-route-if
+        source: 6002-bug-route
+        sourceHandle: source
+        target: 6002-bug-if
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: code
+        id: e-bug-if-bug-switch
+        source: 6002-bug-if
+        sourceHandle: bug
+        target: 6201-switch-bug
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: if-else
+          targetType: if-else
+        id: e-bug-if-default-6003
+        source: 6002-bug-if
+        sourceHandle: default
+        target: '6003'
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: start
+          targetType: code
+        id: e-6001-file-check
+        source: '6001'
+        sourceHandle: source
+        target: 6001-file-check
+        targetHandle: target
+        type: custom
+      - data:
+          sourceType: code
+          targetType: if-else
+        id: e-file-check-gate
+        source: 6001-file-check
+        sourceHandle: source
+        target: 6001-file-gate
+        targetHandle: target
+        type: custom
     nodes:
       - data:
           selected: false
@@ -510,26 +591,20 @@ workflow:
         type: custom
         width: 242
       - data:
-          code: "def main(query: str, input_language: str) -> dict:\n    text = (query
-            or \"\").strip()\n    if input_language and input_language.strip():\n\
+          code: "def main(query: str, input_language: str, image_desc: str) -> dict:\n\
+            \    text = (query or \"\").strip()\n    desc = (image_desc or \"\").strip()\n\
+            \    query_text = f\"{text} [image content: {desc}]\" if text and desc
+            and desc != \"无图\" else (f\"[image content: {desc}]\" if desc and desc
+            != \"无图\" else text)\n    if input_language and input_language.strip():\n\
             \        lang = input_language.strip()\n    else:\n        cjk = sum(1
-            for c in text if '\\u4e00' <= c <= '\\u9fff')\n        # 泰文 0x0E00-0x0E7F;
-            尼泊尔/天城文 0x0900-0x097F\n        thai = any(0x0E00 <= ord(c) <= 0x0E7F for
-            c in text)\n        devanagari = any(0x0900 <= ord(c) <= 0x097F for c
-            in text)\n        vi_chars = \"\\u0103\\u00e2\\u0111\\u00ea\\u00f4\\u01a1\\\
-            u01b0\\u0102\\u00c2\\u0110\\u00ca\\u00d4\\u01a0\\u01af\"\n        vi_chars
-            += \"\\u00e1\\u00e0\\u1ea3\\u00e3\\u1ea1\\u1eaf\\u1eb1\\u1eb3\\u1eb5\\\
-            u1eb7\\u1ea5\\u1ea7\\u1ea9\\u1eab\\u1ead\"\n        vi_chars += \"\\u00e9\\\
-            u00e8\\u1ebb\\u1ebd\\u1eb9\\u1ebf\\u1ec1\\u1ec3\\u1ec5\\u1ec7\\u00ed\\\
-            u00ec\\u1ec9\\u00ee\\u1ecb\"\n        vi_chars += \"\\u00f3\\u00f2\\u1ecf\\\
-            u00f5\\u1ecd\\u1ed1\\u1ed3\\u1ed5\\u1ed7\\u1ed9\\u1edb\\u1edd\\u1edf\\\
-            u1ee1\\u1ee3\"\n        vi_chars += \"\\u00fa\\u00f9\\u1ee5\\u00fb\\u1ee7\\\
-            u1ee9\\u1eeb\\u1eed\\u1eef\\u1ef1\\u00fd\\u1ef3\\u1ef5\\u1ef7\\u1ef9\"\
+            for c in query_text if '一' <= c <= '鿿')\n        thai = any(0x0E00 <=
+            ord(c) <= 0x0E7F for c in query_text)\n        devanagari = any(0x0900
+            <= ord(c) <= 0x097F for c in query_text)\n        vi_chars = \"ăâđêôơưĂÂĐÊÔƠƯáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỵỷỹ\"\
             \n        if thai:\n            lang = \"th\"\n        elif devanagari:\n\
-            \            lang = \"ne\"\n        elif any(c in vi_chars for c in text):\n\
+            \            lang = \"ne\"\n        elif any(c in vi_chars for c in query_text):\n\
             \            lang = \"vi\"\n        elif cjk > 0:\n            lang =
             \"zh\"\n        else:\n            lang = \"en\"\n    return {\"query_text\"\
-            : text, \"language\": lang}\n"
+            : query_text, \"language\": lang}"
           code_language: python3
           outputs:
             language:
@@ -550,6 +625,10 @@ workflow:
                 - '6001'
                 - input_language
               variable: input_language
+            - value_selector:
+                - 6100-merge
+                - output
+              variable: image_desc
         height: 52
         id: '6002'
         position:
@@ -1106,7 +1185,7 @@ workflow:
 
                 3. **只有检索结果完全为空(0条),或检索结果与用户问题不相关**,才说:"该问题暂未收录,建议联系平台客服"
 
-                4. 如果检索到相关结果(即使问题不完全匹配),要整合已有内容给用户排查指引
+                4. 只有检索片段直接支持用户问题时才整合回答；主题相近但不直接支持时按未收录处理
 
                 5. 回答后追问:"请问还有其他问题吗?"
 
@@ -1128,7 +1207,18 @@ workflow:
 
                 - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
 
-                - 结构化业务字段保持中文 key, value 适配用户语言。'
+                - 结构化业务字段保持中文 key, value 适配用户语言。
+
+
+                【回答事实边界】
+
+                - 只能输出检索片段明确支持的菜单、步骤、限制或功能；不得凭常识补充“必须先审核/先登录/先筛选”等前置条件。
+
+                - 不得把“可能、通常、应当”改写成用户已经完成或尚未完成的事实，也不得承诺检索片段没有给出的结果、时效或产品能力。
+
+                - 多端或多版本路径冲突时必须标明适用端；端类型不明时只给已确认的路径并请求补充端类型，不得混合菜单。
+
+                - 检索片段不足以回答时，明确说明“该问题暂未收录”，不要用推测填空。'
             - id: faq-user
               role: user
               text: '{{#6002.query_text#}}'
@@ -1310,11 +1400,7 @@ workflow:
 
                 2. 基于检索结果,按菜单路径输出,**最多5条**
 
-                3. 格式示例:
-
-                1. 如果你要查找计费模板在哪设置,可以在 充电桩>计费模板管理 查找
-
-                2. 如果你要查找节日计费模板,可以在 充电桩>场地设置
+                3. 按检索片段原文输出路径，不自行举例或补充菜单。
 
                 4. 若检索结果为空,说:"未找到该功能的菜单路径,建议联系平台客服"
 
@@ -1336,7 +1422,18 @@ workflow:
 
                 - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
 
-                - 结构化业务字段保持中文 key, value 适配用户语言。'
+                - 结构化业务字段保持中文 key, value 适配用户语言。
+
+
+                【回答事实边界】
+
+                - 只能输出检索片段明确支持的菜单、步骤、限制或功能；不得凭常识补充“必须先审核/先登录/先筛选”等前置条件。
+
+                - 不得把“可能、通常、应当”改写成用户已经完成或尚未完成的事实，也不得承诺检索片段没有给出的结果、时效或产品能力。
+
+                - 多端或多版本路径冲突时必须标明适用端；端类型不明时只给已确认的路径并请求补充端类型，不得混合菜单。
+
+                - 检索片段不足以回答时，明确说明“该问题暂未收录”，不要用推测填空。'
             - id: a4-user
               role: user
               text: '{{#6002.query_text#}}'
@@ -1438,7 +1535,18 @@ workflow:
 
                 - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
 
-                - 结构化业务字段保持中文 key, value 适配用户语言。'
+                - 结构化业务字段保持中文 key, value 适配用户语言。
+
+
+                【回答事实边界】
+
+                - 只能输出检索片段明确支持的菜单、步骤、限制或功能；不得凭常识补充“必须先审核/先登录/先筛选”等前置条件。
+
+                - 不得把“可能、通常、应当”改写成用户已经完成或尚未完成的事实，也不得承诺检索片段没有给出的结果、时效或产品能力。
+
+                - 多端或多版本路径冲突时必须标明适用端；端类型不明时只给已确认的路径并请求补充端类型，不得混合菜单。
+
+                - 检索片段不足以回答时，明确说明“该问题暂未收录”，不要用推测填空。'
             - id: b3-user
               role: user
               text: '{{#6002.query_text#}}'
@@ -1516,7 +1624,7 @@ workflow:
 
                 1. 严格只输出最终答案文本
 
-                2. 基于上下文,指出当前流程及前置流程可能缺失/未完成的操作步骤
+                2. 只复述上下文明确记录的当前流程和步骤；上下文未明确记录的前置条件不得推测或写成用户待完成事项
 
                 3. 若上下文为空,说:"该流程问题暂未收录,建议提供具体操作页面和错误提示"
 
@@ -1540,7 +1648,18 @@ workflow:
 
                 - 若检索结果原文为中文而用户语言非中文, 需将答案翻译为用户语言后输出(关键业务术语可保留中文对照)。
 
-                - 结构化业务字段保持中文 key, value 适配用户语言。'
+                - 结构化业务字段保持中文 key, value 适配用户语言。
+
+
+                【回答事实边界】
+
+                - 只能输出检索片段明确支持的菜单、步骤、限制或功能；不得凭常识补充“必须先审核/先登录/先筛选”等前置条件。
+
+                - 不得把“可能、通常、应当”改写成用户已经完成或尚未完成的事实，也不得承诺检索片段没有给出的结果、时效或产品能力。
+
+                - 多端或多版本路径冲突时必须标明适用端；端类型不明时只给已确认的路径并请求补充端类型，不得混合菜单。
+
+                - 检索片段不足以回答时，明确说明“该问题暂未收录”，不要用推测填空。'
             - id: c3-user
               role: user
               text: '{{#6002.query_text#}}'
@@ -1795,6 +1914,223 @@ workflow:
             answer_text:
               children:
               type: string
+      - data:
+          cases:
+            - case_id: has_files
+              conditions:
+                - comparison_operator: is
+                  id: cond_has_files
+                  value: true
+                  varType: boolean
+                  variable_selector:
+                    - 6001-file-check
+                    - has_image
+              logical_operator: and
+            - case_id: default
+              conditions:
+                - comparison_operator: is
+                  id: cond_no_files
+                  value: false
+                  varType: boolean
+                  variable_selector:
+                    - 6001-file-check
+                    - has_image
+              logical_operator: and
+          selected: false
+          title: 是否包含图片
+          type: if-else
+        height: 118
+        id: '6001-file-gate'
+        position:
+          x: -620
+          y: 0
+        positionAbsolute:
+          x: -620
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          model:
+            mode: chat
+            name: Doubao-Seed-2.0-lite
+            provider: langgenius/volcengine_maas/volcengine_maas
+          prompt_template:
+            - id: v-sys
+              role: system
+              text: 识别图片中的可见文字，并使用与图片文字相同的语言输出一句话。只保留设备编号、故障、界面内容和报错等关键信息。
+            - id: v-user
+              role: user
+              text: Please identify the image content.
+          reasoning_format: separated
+          selected: false
+          title: 图片内容识别
+          type: llm
+          vision:
+            enabled: true
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+        height: 88
+        id: '6100'
+        position:
+          x: -360
+          y: -120
+        positionAbsolute:
+          x: -360
+          y: -120
+        selected: false
+        type: custom
+        width: 242
+      - id: 6100-no-image
+        type: custom
+        position:
+          x: -360
+          y: 100
+        positionAbsolute:
+          x: -360
+          y: 100
+        width: 242
+        height: 88
+        selected: false
+        data:
+          type: code
+          title: 无图直接通过
+          code_language: python3
+          code: "def main() -> dict:\n    return {\"text\": \"无图\"}"
+          variables: []
+          outputs:
+            text:
+              children:
+              type: string
+      - data:
+          advanced_settings:
+            group_enabled: false
+            groups: []
+          output_type: string
+          outputs:
+            output:
+              children:
+              type: string
+          selected: false
+          title: 汇聚图片描述
+          type: variable-aggregator
+          variables:
+            -   - '6100'
+                - text
+            -   - 6100-no-image
+                - text
+        height: 200
+        id: '6100-merge'
+        position:
+          x: -100
+          y: 0
+        positionAbsolute:
+          x: -100
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - id: 6002-bug-route
+        type: custom
+        position:
+          x: -220
+          y: 0
+        positionAbsolute:
+          x: -220
+          y: 0
+        width: 242
+        height: 88
+        selected: false
+        data:
+          type: code
+          title: 显式故障/进度早路由
+          code_language: python3
+          code: "def main(query_text: str) -> dict:\n    query = (query_text or \"\
+            \").strip().lower()\n    progress = (\"解决了吗\", \"修复了吗\", \"处理了吗\", \"\
+            有结果了吗\", \"有进展了吗\", \"当前进度\", \"处理进度\", \"进度如何\", \"进展如何\", \"处理到哪了\"\
+            , \"处理到什么进度\")\n    failures = (\"报错\", \"失败\", \"异常\", \"用不了\", \"不生效\"\
+            , \"没反应\", \"丢失\", \"崩溃\", \"闪退\", \"空白\", \"充不上\", \"中断\")\n    capability
+            = any(term in query for term in (\"能不能\", \"可不可以\", \"是否可以\"))\n    inability
+            = not capability and any(term in query for term in (\"无法\", \"不能\"))\n\
+            \    return {\"is_bug\": any(term in query for term in progress + failures)
+            or inability}"
+          variables:
+            - variable: query_text
+              value_selector:
+                - '6002'
+                - query_text
+          outputs:
+            is_bug:
+              children:
+              type: boolean
+      - data:
+          cases:
+            - case_id: bug
+              conditions:
+                - comparison_operator: is
+                  id: cond_explicit_bug
+                  value: true
+                  varType: boolean
+                  variable_selector:
+                    - 6002-bug-route
+                    - is_bug
+              logical_operator: and
+            - case_id: default
+              conditions:
+                - comparison_operator: is
+                  id: cond_normal_query
+                  value: false
+                  varType: boolean
+                  variable_selector:
+                    - 6002-bug-route
+                    - is_bug
+              logical_operator: and
+          selected: false
+          title: 显式故障直接转B
+          type: if-else
+        height: 118
+        id: '6002-bug-if'
+        position:
+          x: 20
+          y: 0
+        positionAbsolute:
+          x: 20
+          y: 0
+        selected: false
+        type: custom
+        width: 242
+      - id: 6001-file-check
+        type: custom
+        position:
+          x: -700
+          y: 0
+        positionAbsolute:
+          x: -700
+          y: 0
+        width: 242
+        height: 88
+        selected: false
+        data:
+          type: code
+          title: 检查是否包含图片
+          code_language: python3
+          code: "def main(files: list) -> dict:\n    return {\"has_image\": any(isinstance(item,
+            dict) and item.get(\"type\") == \"image\" for item in (files or []))}"
+          variables:
+            - variable: files
+              value_selector:
+                - sys
+                - files
+          outputs:
+            has_image:
+              children:
+              type: boolean
     viewport:
       x: 0
       y: 0

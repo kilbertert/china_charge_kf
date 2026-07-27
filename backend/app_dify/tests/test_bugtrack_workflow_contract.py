@@ -107,6 +107,33 @@ def test_initial_progress_search_removes_status_suffix() -> None:
     assert body["keyword"] == "结算"
 
 
+def test_natural_progress_phrase_matches_ranked_existing_bug() -> None:
+    nodes = _nodes()
+    query = "设备白名单执行重置后原有数据丢失，这个问题现在处理到什么进度？"
+    candidate = {
+        "record_id": "rec-whitelist-reset",
+        "module": "设备白名单",
+        "op_desc": "Web后台充电桩模块，执行重置操作后，原配置白名单数据丢失，列表显示暂无数据。",
+        "dev_status": "开发中",
+    }
+
+    prebuild_ns: dict = {}
+    exec(nodes["62405"]["code"], prebuild_ns)
+    body = json.loads(
+        prebuild_ns["main"](query, "conv-progress-natural")["body_json"]
+    )
+    assert body["keyword"] == "白名单"
+
+    parser_ns: dict = {}
+    exec(nodes["62407"]["code"], parser_ns)
+    result = parser_ns["main"](
+        json.dumps({"hits": [candidate]}, ensure_ascii=False),
+        query,
+    )
+    assert result["hit_record_id"] == "rec-whitelist-reset"
+    assert "当前状态:开发中" in result["row_summary"]
+
+
 def test_graph_searches_before_n5_information_request() -> None:
     graph = _graph()
     nodes = {str(node["id"]): node["data"] for node in graph["nodes"]}
@@ -345,8 +372,77 @@ def test_a_faq_gate_routes_faults_to_bug_app_and_uses_correct_kbs() -> None:
     )
     assert "带截图反馈问题" not in nodes["6201"]["instruction"]
     assert "【进度查询】" in nodes["6201"]["instruction"]
+    for node_id in ("6111", "6212", "6221", "6231"):
+        system_prompts = [
+            item["text"]
+            for item in nodes[node_id]["prompt_template"]
+            if item.get("role") == "system"
+        ]
+        assert any("【回答事实边界】" in text for text in system_prompts)
+    assert "充电桩>计费模板管理" not in nodes["6212"]["prompt_template"][0]["text"]
+    assert "可能缺失/未完成" not in nodes["6231"]["prompt_template"][0]["text"]
     assert nodes["6220"]["dataset_ids"] == ["39659847-228a-402c-a18a-3ce9334565a4"]
     assert nodes["6230"]["dataset_ids"] == ["b310c0a9-7b5a-4793-b8d0-0a111e3040d1"]
+
+
+def test_a_skips_vision_without_files_and_routes_bugs_before_l1() -> None:
+    graph = _graph(A_YML_PATH)
+    nodes = {str(node["id"]): node["data"] for node in graph["nodes"]}
+    edges = {
+        (str(edge["source"]), edge.get("sourceHandle"), str(edge["target"]))
+        for edge in graph["edges"]
+    }
+
+    assert ("6001", "source", "6001-file-check") in edges
+    assert ("6001-file-check", "source", "6001-file-gate") in edges
+    assert ("6001-file-gate", "has_files", "6100") in edges
+    assert ("6001-file-gate", "default", "6100-no-image") in edges
+    assert ("6100", "source", "6100-merge") in edges
+    assert ("6100-no-image", "source", "6100-merge") in edges
+    assert ("6100-merge", "source", "6002") in edges
+    assert ("6001", "source", "6100") not in edges
+    assert ("6002", "source", "6003") not in edges
+    assert ("6002", "source", "6002-bug-route") in edges
+    assert ("6002-bug-if", "bug", "6201-switch-bug") in edges
+    assert ("6002-bug-if", "default", "6003") in edges
+
+    no_image_ns: dict = {}
+    exec(nodes["6100-no-image"]["code"], no_image_ns)
+    assert no_image_ns["main"]() == {"text": "无图"}
+
+    file_check_ns: dict = {}
+    exec(nodes["6001-file-check"]["code"], file_check_ns)
+    assert file_check_ns["main"]([]) == {"has_image": False}
+    assert file_check_ns["main"]([{"type": "audio"}]) == {"has_image": False}
+    assert file_check_ns["main"]([{"type": "image"}]) == {"has_image": True}
+
+    route_ns: dict = {}
+    exec(nodes["6002-bug-route"]["code"], route_ns)
+    assert route_ns["main"]("订单结算失败")["is_bug"] is True
+    assert route_ns["main"]("这个问题现在处理到什么进度")["is_bug"] is True
+    assert route_ns["main"]("订单能不能导出")["is_bug"] is False
+
+
+def test_charge_a_graph_is_acyclic() -> None:
+    graph = _graph(A_YML_PATH)
+    node_ids = {str(node["id"]) for node in graph["nodes"]}
+    incoming = {node_id: 0 for node_id in node_ids}
+    outgoing = {node_id: [] for node_id in node_ids}
+    for edge in graph["edges"]:
+        source, target = str(edge["source"]), str(edge["target"])
+        if source in node_ids and target in node_ids:
+            outgoing[source].append(target)
+            incoming[target] += 1
+    queue = [node_id for node_id, count in incoming.items() if count == 0]
+    visited = 0
+    while queue:
+        source = queue.pop()
+        visited += 1
+        for target in outgoing[source]:
+            incoming[target] -= 1
+            if incoming[target] == 0:
+                queue.append(target)
+    assert visited == len(node_ids), "Dify A workflow graph contains a directed cycle"
 
 
 def test_add_and_update_requests_carry_relational_context() -> None:

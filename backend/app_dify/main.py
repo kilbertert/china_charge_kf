@@ -372,6 +372,11 @@ class ChatflowRouter:
             elif policy_reply.route.startswith("verified_"):
                 state["vague_count"] = 0
                 state["vague_exhausted"] = False
+                # A verified FAQ is a clear topic switch away from a previous
+                # Bug draft. Preserve conv_b for audit/history, but make A the
+                # owner of subsequent normal questions.
+                state["active"] = "A"
+                active = "A"
             async with self._lock:
                 self._store[session_id] = {
                     "state": state,
@@ -402,6 +407,21 @@ class ChatflowRouter:
                 "raw": normalized_raw,
                 "conversation_id": normalized_raw["conversation_id"],
             }
+
+        target_app = self._reply_policy.route_target(
+            text=query,
+            active_app=active,
+            has_attachments=bool(image_bytes or audio_bytes),
+        )
+        if target_app == "B" and self._dual:
+            state["active"] = "B"
+            state["vague_count"] = 0
+            state["vague_exhausted"] = False
+            active = "B"
+            log.info(
+                "[ROUTER] deterministic app_route=B session=%s",
+                session_id[:12],
+            )
 
         if active == "A":
             state["vague_count"] = 0

@@ -28,9 +28,48 @@ import yaml
 A_APP_ID = "33fde774-aeed-4026-a7f7-a0e339e1c030"
 B_APP_ID = "707dd6d2-059f-47c9-aaac-4638e74969c6"
 
-A_NODE_IDS = {"6098", "6111-faq-gate", "6201", "6220", "6230"}
-A_EDGE_IDS = {"e-6111-faq-gate", "e-6111-gate-6098"}
-A_REMOVE_EDGE_IDS = {"e-6111-6098"}
+A_NODE_IDS = {
+    "6001-file-gate",
+    "6001-file-check",
+    "6002",
+    "6002-bug-if",
+    "6002-bug-route",
+    "6098",
+    "6100",
+    "6100-merge",
+    "6100-no-image",
+    "6111",
+    "6111-faq-gate",
+    "6201",
+    "6220",
+    "6212",
+    "6221",
+    "6231",
+    "6230",
+}
+A_EDGE_IDS = {
+    "e-6001-file-check",
+    "e-file-check-gate",
+    "e-file-gate-has-6100",
+    "e-file-gate-default-no-image",
+    "e-6100-merge",
+    "e-no-image-merge",
+    "e-image-merge-6002",
+    "e-6002-bug-route",
+    "e-bug-route-if",
+    "e-bug-if-bug-switch",
+    "e-bug-if-default-6003",
+    "e-6111-faq-gate",
+    "e-6111-gate-6098",
+}
+A_REMOVE_EDGE_IDS = {
+    "e-6001-6002",
+    "e-6001-file-gate",
+    "e-6001-6100",
+    "e-6002-6003",
+    "e-6100-6002",
+    "e-6111-6098",
+}
 
 B_NODE_IDS = {
     "6098",
