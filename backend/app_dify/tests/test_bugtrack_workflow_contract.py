@@ -7,18 +7,22 @@ from pathlib import Path
 
 import yaml
 
-
 YML_PATH = (
     Path(__file__).resolve().parents[3]
     / "Workflow-China_charge_seriver-draft-9380"
     / "workflow"
     / "charge_charging_B.yml"
 )
+A_YML_PATH = YML_PATH.with_name("charge_charging_A.yml")
 
 
 def _nodes() -> dict[str, dict]:
     graph = yaml.safe_load(YML_PATH.read_text(encoding="utf-8"))["workflow"]["graph"]
     return {str(node["id"]): node["data"] for node in graph["nodes"]}
+
+
+def _graph(path: Path = YML_PATH) -> dict:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))["workflow"]["graph"]
 
 
 def test_structuring_nodes_consume_uploaded_images() -> None:
@@ -39,7 +43,7 @@ def test_search_request_keeps_keyword_module_and_operation_description() -> None
         search_keyword="",
         op_desc="后台查看汽车桩时白名单显示暂无数据",
         conversation_id="conv-b-1",
-        flow_state="IDLE",
+        flow_state="searching_refined",
         query_text="设备白名单显示暂无数据",
     )
     body = json.loads(result["body_json"])
@@ -50,9 +54,9 @@ def test_search_request_keeps_keyword_module_and_operation_description() -> None
         "op_desc": "后台查看汽车桩时白名单显示暂无数据",
         "limit": 5,
         "conversation_id": "conv-b-1",
-        "flow_state": "IDLE",
+        "flow_state": "searching_refined",
         "source_text": "设备白名单显示暂无数据",
-        "force_new": True,
+        "force_new": False,
         "idempotency_key": body["idempotency_key"],
     }
     assert body["idempotency_key"].startswith("dify-search-")
@@ -71,6 +75,278 @@ def test_followup_search_reuses_current_draft_binding() -> None:
         query_text="补充一下，仅汽车桩异常",
     )
     assert json.loads(result["body_json"])["force_new"] is False
+
+
+def test_initial_search_uses_raw_text_before_structuring() -> None:
+    node = _nodes()["62405"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    body = json.loads(
+        namespace["main"](
+            conversation_id="conv-b-raw",
+            query_text="订单结算失败",
+        )["body_json"]
+    )
+    assert body["keyword"] == "结算"
+    assert body["module"] == ""
+    assert body["op_desc"] == ""
+    assert body["force_new"] is True
+    assert body["flow_state"] == "searching_initial"
+
+
+def test_initial_progress_search_removes_status_suffix() -> None:
+    node = _nodes()["62405"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    body = json.loads(
+        namespace["main"](
+            conversation_id="conv-b-progress",
+            query_text="订单结算失败解决了吗",
+        )["body_json"]
+    )
+    assert body["keyword"] == "结算"
+
+
+def test_graph_searches_before_n5_information_request() -> None:
+    graph = _graph()
+    nodes = {str(node["id"]): node["data"] for node in graph["nodes"]}
+    edges = {
+        (str(edge["source"]), edge.get("sourceHandle"), str(edge["target"]))
+        for edge in graph["edges"]
+    }
+    assert ("6601", "default", "62405") in edges
+    assert ("62405", "source", "62406") in edges
+    assert ("62406", "source", "62407") in edges
+    assert ("62406", "fail-branch", "6250") in edges
+    assert ("62407", "source", "62408") in edges
+    assert ("62408", "default", "6250") in edges
+    assert ("62408", "bug_exist", "62409") in edges
+    assert ("6250-judge", "source", "6243-pre") in edges
+    assert ("6243-pre", "source", "6240build") in edges
+    assert ("6241", "default", "6250-if") in edges
+    assert ("6601", "default", "6250") not in edges
+    assert ("6601", "default", "6240build") not in edges
+    assert "6240-search-state" not in nodes
+    assert "6241-route" not in nodes
+    assert "{{#62405.body_json#}}" in nodes["62406"]["body"]["data"][0]["value"]
+    assert ("6240", "fail-branch", "6250-if") in edges
+    state_item = next(
+        item
+        for item in nodes["6243"]["items"]
+        if item["variable_selector"] == ["conversation", "cv_flow_state"]
+    )
+    assert state_item["value"] == ["6901", "str_await_confirm_new"]
+
+
+def test_bugtrack_graph_is_acyclic() -> None:
+    graph = _graph()
+    node_ids = {str(node["id"]) for node in graph["nodes"]}
+    incoming = {node_id: 0 for node_id in node_ids}
+    outgoing = {node_id: [] for node_id in node_ids}
+    for edge in graph["edges"]:
+        source, target = str(edge["source"]), str(edge["target"])
+        if source in node_ids and target in node_ids:
+            outgoing[source].append(target)
+            incoming[target] += 1
+    queue = [node_id for node_id, count in incoming.items() if count == 0]
+    visited = 0
+    while queue:
+        source = queue.pop()
+        visited += 1
+        for target in outgoing[source]:
+            incoming[target] -= 1
+            if incoming[target] == 0:
+                queue.append(target)
+    assert visited == len(node_ids), "Dify workflow graph contains a directed cycle"
+
+
+def test_refined_search_reuses_presearch_draft() -> None:
+    node = _nodes()["6240build"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    body = json.loads(
+        namespace["main"](
+            mokuai="订单管理",
+            search_keyword="结算失败",
+            op_desc="后台订单结算失败",
+            conversation_id="conv-b-raw",
+            flow_state="searching_refined",
+            query_text="订单结算失败",
+        )["body_json"]
+    )
+    assert body["module"] == "订单管理"
+    assert body["op_desc"] == "后台订单结算失败"
+    assert body["force_new"] is False
+
+
+def test_d2_requires_similarity_threshold_before_existing_issue() -> None:
+    node = _nodes()["6240-parse"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    hit = {
+        "record_id": "rec-1",
+        "module": "订单管理",
+        "op_desc": "后台订单结算失败",
+        "match_score": 130,
+        "match_threshold": 125,
+        "dev_status": "开发中",
+    }
+    assert (
+        namespace["main"](json.dumps({"hits": [hit]}), "订单管理")["hit_record_id"]
+        == "rec-1"
+    )
+    hit["match_score"] = 101
+    assert (
+        namespace["main"](json.dumps({"hits": [hit]}), "订单管理")["hit_record_id"]
+        == ""
+    )
+
+
+def test_d2_scores_legacy_api_candidates_and_checks_beyond_first_hit() -> None:
+    node = _nodes()["6240-parse"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    hits = [
+        {
+            "record_id": "rec-unrelated",
+            "module": "订单管理",
+            "op_desc": "订单详情页导出按钮点击后没有生成文件",
+        },
+        {
+            "record_id": "rec-duplicate",
+            "module": "订单管理",
+            "op_desc": "后台订单结算时提示失败，订单无法完成结算",
+        },
+    ]
+    result = namespace["main"](
+        json.dumps({"hits": hits}),
+        "订单管理",
+        "结算失败",
+        "后台订单结算操作失败，订单不能正常结算",
+    )
+    assert result["hit_record_id"] == "rec-duplicate"
+
+
+def test_raw_presearch_accepts_identical_legacy_candidate() -> None:
+    node = _nodes()["62407"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    result = namespace["main"](
+        json.dumps(
+            {
+                "hits": [
+                    {
+                        "record_id": "rec-existing",
+                        "module": "订单管理",
+                        "op_desc": "后台查询订单后执行结算操作时失败，订单无法完成结算",
+                        "dev_status": "开发中",
+                    }
+                ]
+            }
+        ),
+        "订单结算失败解决了吗",
+    )
+    assert result["hit_record_id"] == "rec-existing"
+    assert "当前状态:开发中" in result["row_summary"]
+
+
+def test_raw_presearch_rejects_other_order_problem() -> None:
+    node = _nodes()["62407"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    result = namespace["main"](
+        json.dumps(
+            {
+                "hits": [
+                    {
+                        "record_id": "rec-refund",
+                        "module": "订单退款",
+                        "op_desc": "用户充电结束后剩余金额未自动退款",
+                    }
+                ]
+            }
+        ),
+        "订单结算失败",
+    )
+    assert result["hit_record_id"] == ""
+
+
+def test_progress_hit_is_answered_without_identity_question() -> None:
+    node = _nodes()["6242"]
+    namespace: dict = {}
+    exec(node["code"], namespace)
+    answer = namespace["main"]("当前状态:开发中", "这个问题解决了吗?")["answer_text"]
+    assert "当前进度如下" in answer
+    assert "是不是同一个问题" not in answer
+
+
+def test_final_reply_sanitizer_removes_unfounded_commitment() -> None:
+    graph = _graph()
+    nodes = {str(node["id"]): node["data"] for node in graph["nodes"]}
+    edges = {
+        (str(edge["source"]), edge.get("sourceHandle"), str(edge["target"]))
+        for edge in graph["edges"]
+    }
+    namespace: dict = {}
+    exec(nodes["60985"]["code"], namespace)
+    answer = namespace["main"]("我们将尽快排查修复，请您耐心等待。")[
+        "answer_text"
+    ]
+    assert "尽快" not in answer
+    assert "记录并持续跟进" in answer
+    assert ("6098", "source", "60985") in edges
+    assert ("60985", "source", "6099") in edges
+    assert ("6098", "source", "6099") not in edges
+    assert nodes["6099"]["answer"] == "{{#60985.answer_text#}}"
+    assert "不得承诺处理时效" in nodes["6244"]["prompt_template"][0]["text"]
+
+
+def test_denial_path_preserves_new_clue_and_rechecks() -> None:
+    graph = _graph()
+    nodes = {str(node["id"]): node["data"] for node in graph["nodes"]}
+    edges = {
+        (str(edge["source"]), edge.get("sourceHandle"), str(edge["target"]))
+        for edge in graph["edges"]
+    }
+    deny_items = nodes["6177-assigner"]["items"]
+    assert {
+        tuple(item["value"])
+        for item in deny_items
+        if item["variable_selector"][-1] in {"cv_mokuai", "cv_feedback_zh"}
+    } == {
+        ("6177-parse", "mokuai"),
+        ("6177-parse", "caozuomiaoshu"),
+    }
+    assert ("6177-assigner", "source", "6240build") in edges
+    assert ("6241", "denial_search", "6243") in edges
+    assert "6177-deny-out" not in nodes
+    assert "6177-denial-confirm-state" not in nodes
+
+
+def test_a_faq_gate_routes_faults_to_bug_app_and_uses_correct_kbs() -> None:
+    graph = _graph(A_YML_PATH)
+    nodes = {str(node["id"]): node["data"] for node in graph["nodes"]}
+    edges = {
+        (str(edge["source"]), edge.get("sourceHandle"), str(edge["target"]))
+        for edge in graph["edges"]
+    }
+    assert ("6111", "source", "6111-faq-gate") in edges
+    assert ("6111-faq-gate", "source", "6098") in edges
+    assert ["6111", "text"] not in nodes["6098"]["variables"]
+    assert ["6111-faq-gate", "answer_text"] in nodes["6098"]["variables"]
+    gate_ns: dict = {}
+    exec(nodes["6111-faq-gate"]["code"], gate_ns)
+    assert (
+        "SWITCH_TO_BUG" in gate_ns["main"]("FAQ answer", "订单结算失败")["answer_text"]
+    )
+    assert (
+        "SWITCH_TO_BUG"
+        not in gate_ns["main"]("FAQ answer", "怎么设置计费模板")["answer_text"]
+    )
+    assert "带截图反馈问题" not in nodes["6201"]["instruction"]
+    assert "【进度查询】" in nodes["6201"]["instruction"]
+    assert nodes["6220"]["dataset_ids"] == ["39659847-228a-402c-a18a-3ce9334565a4"]
+    assert nodes["6230"]["dataset_ids"] == ["b310c0a9-7b5a-4793-b8d0-0a111e3040d1"]
 
 
 def test_add_and_update_requests_carry_relational_context() -> None:
@@ -110,7 +386,9 @@ def test_add_and_update_requests_carry_relational_context() -> None:
     assert update_body["idempotency_key"].startswith("dify-update-")
 
 
-def test_confirm_with_image_instruction_overrides_llm_modify_misclassification() -> None:
+def test_confirm_with_image_instruction_overrides_llm_modify_misclassification() -> (
+    None
+):
     node = _nodes()["6170-parse"]
     namespace: dict = {}
     exec(node["code"], namespace)

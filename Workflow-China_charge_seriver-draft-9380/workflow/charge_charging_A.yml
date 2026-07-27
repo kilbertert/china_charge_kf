@@ -371,15 +371,6 @@ workflow:
       - data:
           sourceType: llm
           targetType: answer
-        id: e-6111-6098
-        source: '6111'
-        sourceHandle: source
-        target: '6098'
-        targetHandle: target
-        type: custom
-      - data:
-          sourceType: llm
-          targetType: answer
         id: e-6212-6098
         source: '6212'
         sourceHandle: source
@@ -452,6 +443,24 @@ workflow:
         target: '6098'
         targetHandle: target
         type: custom
+      - id: e-6111-faq-gate
+        source: '6111'
+        sourceHandle: source
+        target: 6111-faq-gate
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: llm
+          targetType: code
+      - id: e-6111-gate-6098
+        source: 6111-faq-gate
+        sourceHandle: source
+        target: '6098'
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: code
+          targetType: variable-aggregator
     nodes:
       - data:
           selected: false
@@ -1160,16 +1169,17 @@ workflow:
             - class_c 流程操作:用户想知道怎么操作/如何设置/操作步骤(当前功能可用,只是不会用)。\n- class_d Bug反馈/功能故障:用户描述某功能无法使用、操作失败、报错、异常、没反应、达不到预期,或询问\"\
             为什么无法XX/怎么回事\"且核心是功能失效。\n\n【判定优先级(逐条自上而下匹配,命中即定,不再往下)——bug失效判定最优先】\n1.
             【bug失效·最高优先】出现\"无法/不能/用不了/不工作/失败/报错/异常/没反应/卡住/XX不了/修改不了/添加不了/提交不了/不生效/达不到预期\"\
-            等功能失效表述,或带截图反馈问题 → class_d\n   关键:即使句中带\"怎么回事/为什么/是什么原因\"等询问口吻,只要核心是某功能做不到/坏了
-            → 仍归 class_d\n2. 【功能位置】用户问\"在哪/怎么找/怎么进入/入口在哪/菜单位置\" → class_a\n3. 【流程操作】用户问\"\
-            怎么操作/如何设置/步骤是什么/教程\"(功能可用,想学怎么用) → class_c\n4. 【业务规则】用户问\"规则/标准/为什么这么收费/计费逻辑/业务规则\"\
-            \ → class_b\n\n【关键边界消歧】\n- \"无法修改/修改不了/修改失败\" = 功能失效 → class_d(不是 c)\n\
-            - \"怎么修改/如何修改\" = 想学操作步骤 → class_c\n- \"修改入口在哪\" = 找功能位置 → class_a\n-
-            \"为什么无法修改/无法修改是怎么回事\" = 功能失效+询问原因 → class_d(不是 b)\n- \"计费规则是什么\" = 规则咨询
-            → class_b\n- \"计费怎么设置\" = 操作指引 → class_c\n- \"计费设置后不生效/计费算错了\" = 功能失效
-            → class_d\n\n【示例】\n- \"运营商关联的C端用户无法修改是怎么回事\" → class_d\n- \"用户注册报错,打包时未添加fingerprint模块\"\
-            \ → class_d\n- \"怎么配置计费模板\" → class_c\n- \"计费模板入口在哪\" → class_a\n- \"\
-            夜间服务费怎么收的\" → class_b\n- \"我截图这个报错帮我看看\" → class_d\n\n只输出一个分类 id。"
+            等功能失效表述 → class_d\n   关键:即使句中带\"怎么回事/为什么/是什么原因\"等询问口吻,只要核心是某功能做不到/坏了 →
+            仍归 class_d\n1.5 【进度查询】用户询问已有问题是否解决/当前处理状态(如“解决了吗”“处理到哪了”) → class_d\n\
+            2. 【功能位置】用户问\"在哪/怎么找/怎么进入/入口在哪/菜单位置\" → class_a\n3. 【流程操作】用户问\"怎么操作/如何设置/步骤是什么/教程\"\
+            (功能可用,想学怎么用) → class_c\n4. 【业务规则】用户问\"规则/标准/为什么这么收费/计费逻辑/业务规则\" → class_b\n\
+            \n【关键边界消歧】\n- \"无法修改/修改不了/修改失败\" = 功能失效 → class_d(不是 c)\n- \"怎么修改/如何修改\"\
+            \ = 想学操作步骤 → class_c\n- \"修改入口在哪\" = 找功能位置 → class_a\n- \"为什么无法修改/无法修改是怎么回事\"\
+            \ = 功能失效+询问原因 → class_d(不是 b)\n- \"计费规则是什么\" = 规则咨询 → class_b\n- \"计费怎么设置\"\
+            \ = 操作指引 → class_c\n- \"计费设置后不生效/计费算错了\" = 功能失效 → class_d\n\n【示例】\n- \"\
+            运营商关联的C端用户无法修改是怎么回事\" → class_d\n- \"用户注册报错,打包时未添加fingerprint模块\" → class_d\n\
+            - \"怎么配置计费模板\" → class_c\n- \"计费模板入口在哪\" → class_a\n- \"夜间服务费怎么收的\" →
+            class_b\n- \"我截图这个报错帮我看看\" → class_d\n\n只输出一个分类 id。"
           model:
             mode: chat
             name: Doubao-Seed-2.0-lite
@@ -1456,7 +1466,7 @@ workflow:
         width: 242
       - data:
           dataset_ids:
-            - 39659847-228a-402c-a18a-3ce9334565a4
+            - b310c0a9-7b5a-4793-b8d0-0a111e3040d1
           multiple_retrieval_config:
             reranking_enable: true
             reranking_mode: reranking_model
@@ -1473,7 +1483,7 @@ workflow:
             - query_text
           retrieval_mode: multiple
           selected: false
-          title: C2 查询流程操作
+          title: C2 查询流程操作手册
           type: knowledge-retrieval
         height: 118
         id: '6230'
@@ -1656,8 +1666,6 @@ workflow:
                 - text
             -   - '6107'
                 - text
-            -   - '6111'
-                - text
             -   - '6212'
                 - text
             -   - '6221'
@@ -1667,6 +1675,8 @@ workflow:
             -   - 6201-switch-bug
                 - answer_text
             -   - 6109-out
+                - answer_text
+            -   - 6111-faq-gate
                 - answer_text
         height: 200
         id: '6098'
@@ -1751,6 +1761,40 @@ workflow:
               value_selector:
                 - '6002'
                 - query_text
+      - id: 6111-faq-gate
+        type: custom
+        position:
+          x: 1400
+          y: 220
+        positionAbsolute:
+          x: 1400
+          y: 220
+        width: 242
+        height: 88
+        selected: false
+        data:
+          type: code
+          title: FAQ后故障/进度闸门
+          code_language: python3
+          code: "def main(faq_text: str, query_text: str) -> dict:\n    answer = faq_text
+            or \"\"\n    query = (query_text or \"\").strip()\n    terms = (\"报错\"\
+            , \"无法\", \"不能\", \"用不了\", \"失败\", \"异常\", \"没反应\", \"不生效\", \"充不上\",
+            \"中断\", \"解决了吗\", \"处理了吗\", \"有结果吗\")\n    if any(term in query for term
+            in terms):\n        answer += \"\\n<!--SYS:SWITCH_TO_BUG-->\"\n    return
+            {\"answer_text\": answer}"
+          variables:
+            - variable: faq_text
+              value_selector:
+                - '6111'
+                - text
+            - variable: query_text
+              value_selector:
+                - '6002'
+                - query_text
+          outputs:
+            answer_text:
+              children:
+              type: string
     viewport:
       x: 0
       y: 0
