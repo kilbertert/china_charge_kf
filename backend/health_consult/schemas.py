@@ -76,6 +76,7 @@ class SceneResponse(BaseModel):
     scene: Scene
     risk_level: RiskLevel = "low"
     confidence: float = 1.0
+    payloadKind: Optional[Literal["complete", "insufficient_data", "report_done", "product_vetted"]] = None
     payload: dict[str, Any] = Field(default_factory=dict)
     # 原始 Dify 响应(可选,供前端调试)
     raw: Optional[dict[str, Any]] = None

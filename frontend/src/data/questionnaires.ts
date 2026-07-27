@@ -388,6 +388,24 @@ export const LEG_PAIN_QUESTIONNAIRE: Questionnaire = {
       ]
     },
     {
+      "id": "weakness_numbness",
+      "text": "是否伴有明显麻木、无力或放射感?",
+      "type": "single",
+      "tag": "urgent",
+      "options": [
+        {
+          "key": "no",
+          "label": "没有",
+          "weight": 0
+        },
+        {
+          "key": "yes",
+          "label": "有",
+          "weight": 3
+        }
+      ]
+    },
+    {
       "id": "location",
       "text": "您主要疼在哪里?",
       "type": "single",

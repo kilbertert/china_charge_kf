@@ -172,10 +172,36 @@ def test_urgent_gate_no_urgent_answers_keeps_medium(monkeypatch):
     assert result["risk_level"] == "medium"
 
 
-def test_detect_urgent_answers_covers_all_seven_keys():
-    """复审 P1: 工作流 URGENT_ANSWER_KEYS 缺的 3 个 key 后端必须覆盖。"""
+def test_symptom_complete_normalizes_legacy_tag_and_adds_solution_ref(monkeypatch):
+    mock_client = _setup_fake_dify(
+        monkeypatch,
+        {
+            "scene": "symptom",
+            "risk_level": "low",
+            "confidence": 0.8,
+            "payload": {
+                "dataComplete": True,
+                "tag": "soft_tissue_overuse",
+                "riskLevel": "low",
+            },
+        },
+    )
+    with patch("health_consult.dify_proxy.get_dify_client", return_value=mock_client):
+        result = asyncio.run(
+            chat_with_dify(
+                text="",
+                answers={"location": "calf", "duration": "lt_3d", "trigger": "walking"},
+                language="中文",
+            )
+        )
+    assert result["payload"]["tag"] == "muscle_strain"
+    assert result["payload"]["solutionRef"] == "muscle_strain_v1"
+
+
+def test_detect_urgent_answers_covers_all_catalog_keys():
+    """后端答案闸门覆盖 shared catalog 与工作流的全部危险信号 key。"""
     from health_consult.scene_router import detect_urgent_answers
-    # leg_pain 量表全部 7 个 urgent 问题(含工作流漏的 red_swollen_hot/calf_swelling/fever_chills)
+    # shared leg_pain 量表的危险问题(含工作流曾漏的 3 个 key)
     urgent_qids = [
         "sudden_severe", "trauma", "cannot_stand", "red_swollen_hot",
         "calf_swelling", "chest_discomfort", "fever_chills",
@@ -187,3 +213,9 @@ def test_detect_urgent_answers_covers_all_seven_keys():
     assert detect_urgent_answers({"location": "knee"}) is False
     assert detect_urgent_answers({}) is False
     assert detect_urgent_answers(None) is False
+
+
+def test_detect_urgent_answers_covers_neurological_screen():
+    from health_consult.scene_router import detect_urgent_answers
+
+    assert detect_urgent_answers({"weakness_numbness": "yes"}) is True

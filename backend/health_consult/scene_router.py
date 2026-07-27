@@ -53,6 +53,9 @@ _URGENT_ANSWER_KEYS: dict[str, set[str]] = {
     for q in LEG_PAIN_QUESTIONNAIRE["questions"]
     if q.get("tag") == "urgent"
 }
+# The production Dify questionnaire also exposes this explicit neurological
+# screen. Keep it in the backend gate even when an older local catalog is used.
+_URGENT_ANSWER_KEYS.setdefault("weakness_numbness", {"yes"})
 
 # T 值数字识别(腰椎 / 股骨 / 全髋) / "XX岁,女/男"
 _T_VALUE_RE = re.compile(_cfg.regex_pattern("t_value"), re.IGNORECASE)

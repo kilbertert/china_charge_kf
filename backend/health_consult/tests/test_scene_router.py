@@ -145,7 +145,7 @@ def test_fallback_symptom_returns_questions():
     p = build_fallback_payload(SCENE_SYMPTOM, "low")
     assert p["currentStep"] == "danger_signal"
     assert p["questionnaireRef"] == "leg_pain_v1"
-    assert len(p["questions"]) == 7  # A 表 7 题
+    assert len(p["questions"]) == 8  # A 表 8 题(含麻木/无力)
 
 
 def test_fallback_symptom_urgent_returns_alert():

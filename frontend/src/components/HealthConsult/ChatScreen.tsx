@@ -1,12 +1,6 @@
 import { useRef, useState } from 'react'
 import { HealthDisclaimer } from './HealthDisclaimer'
-
-export type ChatMessageItem = {
-  id: string
-  role: 'user' | 'assistant'
-  text?: string
-  fileNames?: string[]
-}
+import type { ChatMessageItem } from './chatMessage'
 
 type Props = {
   messages: ChatMessageItem[]
@@ -21,11 +15,6 @@ const QUICK_ACTIONS = [
   { key: 'symptom' as const, icon: '💬', label: '描述身体不适', prompt: '请描述您目前的身体不适' },
   { key: 'nutrition' as const, icon: '🥗', label: '咨询营养与饮食', prompt: '我想咨询营养与饮食方面的建议' },
 ]
-
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  return 'id-' + Date.now() + '-' + Math.floor(Math.random() * 1e6)
-}
 
 export function ChatScreen({ messages, loading, onSend, errorMessage, onQuickAction }: Props) {
   const [text, setText] = useState('')
@@ -168,11 +157,4 @@ export function ChatScreen({ messages, loading, onSend, errorMessage, onQuickAct
       </div>
     </div>
   )
-}
-
-export function newChatMessage(
-  role: 'user' | 'assistant',
-  payload: { text?: string; fileNames?: string[] },
-): ChatMessageItem {
-  return { id: generateId(), role, ...payload }
 }

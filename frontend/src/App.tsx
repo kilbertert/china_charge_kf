@@ -202,7 +202,7 @@ function Avatar({ role }: { role: ChatRole }) {
   )
 }
 
-function App() {
+function ChargeChatApp() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [text, setText] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -229,22 +229,12 @@ function App() {
   const recordingStartTimeRef = useRef<number>(0)
   const recordingTimerRef = useRef<number | null>(null)
   const isRecordingRef = useRef<boolean>(false)
+  const handleSendRef = useRef<() => Promise<void>>(async () => {})
   // const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) || 'https://zcf.h5.qumall.qushiyun.com'
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) || ''
   
   const t = translations[lang]
 
-  // === Health Consult Module routing (?view=health) ===
-  const searchParams = new URLSearchParams(window.location.search)
-  const hcView = searchParams.get('view')
-  if (hcView === 'health') {
-    return (
-      <Suspense fallback={<div className="loading">加载中…</div>}>
-        <HealthConsultApp />
-      </Suspense>
-    )
-  }
-  // === End ===
   const imagePreviewUrl = useMemo(() => {
     if (!file) return null
     return URL.createObjectURL(file)
@@ -278,8 +268,12 @@ function App() {
   }, [messages.length, isSending, isMorePanelOpen])
 
   useEffect(() => {
+    handleSendRef.current = handleSend
+  })
+
+  useEffect(() => {
     if (audioBlob && isVoiceMode && !isSending) {
-      void handleSend()
+      void handleSendRef.current()
     }
   }, [audioBlob, isVoiceMode, isSending])
 
@@ -739,6 +733,18 @@ function App() {
       </div>
     </div>
   )
+}
+
+function App() {
+  const hcView = new URLSearchParams(window.location.search).get('view')
+  if (hcView === 'health') {
+    return (
+      <Suspense fallback={<div className="loading">加载中…</div>}>
+        <HealthConsultApp />
+      </Suspense>
+    )
+  }
+  return <ChargeChatApp />
 }
 
 export default App

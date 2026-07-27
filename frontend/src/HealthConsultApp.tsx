@@ -6,8 +6,10 @@ import {
   type ReportDonePayload,
   type SymptomPayload,
   type SymptomDonePayload,
+  type SymptomQuestion,
 } from './hooks/useSceneChat'
-import { ChatScreen, newChatMessage, type ChatMessageItem } from './components/HealthConsult/ChatScreen'
+import { ChatScreen } from './components/HealthConsult/ChatScreen'
+import { newChatMessage, type ChatMessageItem } from './components/HealthConsult/chatMessage'
 import { ReportScreen } from './components/HealthConsult/ReportScreen'
 import { ReportInsufficientScreen } from './components/HealthConsult/ReportInsufficientScreen.tsx'
 import { QuestionnaireScreen } from './components/HealthConsult/QuestionnaireScreen'
@@ -31,6 +33,42 @@ function isSymptomDisplay(p: SymptomPayload | SymptomDonePayload): p is SymptomD
 
 function isReportInsufficient(p: ReportPayload | ReportInsufficientPayload | ReportDonePayload): p is ReportInsufficientPayload {
   return 'dataComplete' in p && p.dataComplete === false
+}
+
+function questionnaireFromPayload(
+  id: string,
+  scene: Questionnaire['scene'],
+  questions: SymptomQuestion[],
+  title?: string,
+): Questionnaire | null {
+  if (!questions.length) return getQuestionnaireById(id) || null
+  const local = getQuestionnaireById(id)
+  const localById = new Map((local?.questions || []).map((question) => [question.id, question]))
+  return {
+    id,
+    scene,
+    title: title || local?.title || '健康信息补充表',
+    description: local?.description || '请根据当前情况选择最符合的一项。',
+    questions: questions.map((question) => {
+      const known = localById.get(question.id)
+      return {
+        id: question.id,
+        text: question.text,
+        type: 'single',
+        tag: known?.tag || (question.id === 'weakness_numbness' ? 'urgent' : 'workflow'),
+        options: question.options.map((option) => ({
+          key: option.key,
+          label: option.label,
+          weight: known?.options.find((item) => item.key === option.key)?.weight || 0,
+        })),
+      }
+    }),
+  }
+}
+
+function solutionTagFromPayload(payload: SymptomDonePayload): string {
+  const ref = typeof payload.solutionRef === 'string' ? payload.solutionRef : ''
+  return (ref.replace(/_v1$/, '') || payload.tag || '').trim()
 }
 
 function getReportDate(): string {
@@ -117,7 +155,12 @@ export default function HealthConsultApp() {
         handleSymptomDone(payload)
         return
       }
-      const q = getQuestionnaireById(payload.questionnaireRef)
+      const q = questionnaireFromPayload(
+        payload.questionnaireRef,
+        'symptom',
+        payload.questions || [],
+        payload.questionnaireTitle,
+      )
       if (q) setQuestionnaire(q)
       else {
         setMessages((prev) => [
@@ -149,7 +192,7 @@ export default function HealthConsultApp() {
   }
 
   function handleSymptomDone(payload: SymptomDonePayload) {
-    const sol = getSolution('symptom', payload.solutionRef.replace('_v1', ''))
+    const sol = getSolution('symptom', solutionTagFromPayload(payload))
     if (sol) {
       setSolution(sol)
       setView('suggestion')
@@ -177,7 +220,7 @@ export default function HealthConsultApp() {
       return
     }
     if (res.scene === 'symptom' && !isSymptomDisplay(res.payload)) {
-      const sol = getSolution('symptom', res.payload.solutionRef.replace('_v1', ''))
+      const sol = getSolution('symptom', solutionTagFromPayload(res.payload))
       if (sol) {
         setSolution(sol)
         setSymptomStep('suggestion')
@@ -220,10 +263,14 @@ export default function HealthConsultApp() {
 
     function handleStartAnalysis() {
     if (!reportPayload) return
-    // report 场景固定使用骨密度原因分析量表,不使用 LLM 动态生成问题
-    const localFallback = getQuestionnaireById('bone_density_v1')
-    if (localFallback) {
-      setQuestionnaire(localFallback)
+    const reportQuestions = reportPayload.questions || []
+    const questionnaire = questionnaireFromPayload(
+      reportPayload.questionnaireRef || 'bone_density_v1',
+      'report',
+      reportQuestions,
+    )
+    if (questionnaire) {
+      setQuestionnaire(questionnaire)
       setQuestionnaireScene('report')
       setQuestionnaireStatusMessage(null)
       setAnswers({})

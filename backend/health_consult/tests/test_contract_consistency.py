@@ -33,8 +33,8 @@ def test_bone_density_question_count():
 
 
 def test_leg_pain_question_count():
-    # A 表 7 + B 表 5(location+side+duration+trigger+quality) + C 表 3 = 15
-    assert len(LEG_PAIN_QUESTIONNAIRE["questions"]) == 15
+    # A 表 8(含麻木/无力) + B 表 5 + C 表 3 = 16
+    assert len(LEG_PAIN_QUESTIONNAIRE["questions"]) == 16
 
 
 def test_bone_density_6_unique_tags():
@@ -52,7 +52,7 @@ def test_bone_density_6_unique_tags():
 
 def test_leg_pain_urgent_signals_present():
     urgent = [q for q in LEG_PAIN_QUESTIONNAIRE["questions"] if q["tag"] == "urgent"]
-    assert len(urgent) == 7
+    assert len(urgent) == 8
 
 
 def test_leg_pain_b_and_c_sections_present():

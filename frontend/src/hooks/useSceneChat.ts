@@ -95,17 +95,24 @@ export type SymptomPayload = {
   dangerSignals: string[]
   questionnaireRef: string
   currentStep: string
+  questionnaireTitle?: string
   questions: SymptomQuestion[]
 }
 
 export type SymptomDonePayload = {
+  dataComplete?: boolean
+  symptomIntent?: string
+  questionnaireRef?: string
+  tag?: string
   riskLevel: RiskLevel
-  possibleDirection: string
-  department: string
-  redFlag: string[]
-  lifestyle: string[]
-  nutrition: string[]
-  solutionRef: string
+  department?: string
+  oneLineConclusion?: string
+  possibleDirection?: string
+  redFlag?: string[]
+  dangerSignals?: string[]
+  lifestyle?: string[]
+  nutrition?: string[]
+  solutionRef?: string
 }
 
 export function useSceneChat(sessionId: string) {

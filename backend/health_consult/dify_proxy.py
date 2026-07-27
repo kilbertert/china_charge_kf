@@ -36,6 +36,39 @@ from .scene_router import (  # noqa: E402
 log = logging.getLogger("health_consult.dify_proxy")
 
 
+# Dify workflow revisions before the response contract was centralized used
+# internal classifier labels. Keep the adapter tolerant during rollout, but
+# expose only the tags and refs that the shared solution catalog defines.
+_SYMPTOM_TAG_ALIASES = {
+    "possible_nerve_related": "lumbar_radiculopathy",
+    "joint_load_related": "knee_degeneration",
+    "persistent_leg_pain": "muscle_strain",
+    "soft_tissue_overuse": "muscle_strain",
+    "possible_radicular_back_pain": "lumbar_radiculopathy",
+    "chronic_back_pain": "lumbar_radiculopathy",
+    "mechanical_back_pain": "muscle_strain",
+    "inflammatory_joint_pattern": "gout_inflammatory",
+    "load_related_joint_pain": "knee_degeneration",
+    "nonspecific_joint_pain": "muscle_strain",
+    "needs_offline_assessment": "muscle_strain",
+    "generic_low_risk_symptom": "muscle_strain",
+}
+
+
+def _normalize_payload_contract(scene: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize legacy workflow labels into the shared frontend contract."""
+    normalized = dict(payload)
+    if scene != SCENE_SYMPTOM or not normalized.get("dataComplete"):
+        return normalized
+
+    raw_tag = str(normalized.get("tag") or "").strip()
+    tag = _SYMPTOM_TAG_ALIASES.get(raw_tag, raw_tag)
+    if tag:
+        normalized["tag"] = tag
+        normalized.setdefault("solutionRef", f"{tag}_v1")
+    return normalized
+
+
 class DifyProxyError(RuntimeError):
     """Raised when Dify proxy fails irrecoverably (caller decides whether to fallback)."""
 
@@ -167,12 +200,14 @@ async def chat_with_dify(
     # 期望结构: {scene, risk_level, confidence, payload}
     scene = parsed.get("scene") or "symptom"
     risk_level = parsed.get("risk_level") or "low"
+    payload_kind = parsed.get("payloadKind")
     confidence = parsed.get("confidence")
     if not isinstance(confidence, (int, float)):
         confidence = 1.0
     payload = parsed.get("payload")
     if not isinstance(payload, dict):
         payload = {}
+    payload = _normalize_payload_contract(scene, payload)
 
     # ── 确定性全局紧急闸门 (P1-1 + 复审 P1: answers 路径) ────────
     # 不信任 Dify 的 risk_level。两条漏 urgent 路径都用后端确定性兜底:
@@ -194,11 +229,13 @@ async def chat_with_dify(
         risk_level = RISK_URGENT
         payload = build_fallback_payload(SCENE_SYMPTOM, RISK_URGENT, text or "")
         confidence = 1.0
+        payload_kind = "complete"
 
     return {
         "scene": scene,
         "risk_level": risk_level,
         "confidence": float(confidence),
+        "payloadKind": payload_kind,
         "payload": payload,
         "raw": body,
     }
