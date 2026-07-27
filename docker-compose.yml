@@ -39,8 +39,8 @@ services:
     env_file:
       - ./backend/.env.dify
     build:
-      context: ./backend
-      dockerfile: Dockerfile.dify
+      context: .
+      dockerfile: backend/Dockerfile.dify
     container_name: china-charge-backend-dify
     environment:
       PORT: 8012

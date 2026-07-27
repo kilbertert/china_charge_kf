@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -12,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from app_dify.config import settings
+from app_dify.charge_reply_policy import get_charge_reply_policy
 from app_dify.dify_client import (
     DifyClient,
     DifyError,
@@ -134,6 +136,7 @@ class ChatflowRouter:
         self._client_b = DifyClient(api_base, key_b, end_user) if self._dual else None
         self._store: dict[str, dict] = {}  # {sid: {"state": {...}, "ts": monotonic}}
         self._lock = asyncio.Lock()
+        self._reply_policy = get_charge_reply_policy()
 
     def _client_for(self, app: str) -> DifyClient:
         if self._dual and app == "B":
@@ -265,11 +268,25 @@ class ChatflowRouter:
             route = (response.json() or {}).get("route")
             if not isinstance(route, dict):
                 return None
+            route_data = route.get("route_data") or {}
+            if isinstance(route_data, str):
+                try:
+                    route_data = json.loads(route_data)
+                except ValueError:
+                    route_data = {}
+            if not isinstance(route_data, dict):
+                route_data = {}
             active = "B" if route.get("active") == "B" else "A"
+            try:
+                vague_count = max(0, int(route_data.get("vague_count") or 0))
+            except (TypeError, ValueError):
+                vague_count = 0
             return {
                 "active": active,
                 "conv_a": str(route.get("conv_a") or ""),
                 "conv_b": str(route.get("conv_b") or ""),
+                "vague_count": vague_count,
+                "vague_exhausted": bool(route_data.get("vague_exhausted")),
             }
         except (httpx.HTTPError, ValueError) as exc:
             log.warning(
@@ -287,7 +304,10 @@ class ChatflowRouter:
             "active": "B" if state.get("active") == "B" else "A",
             "conv_a": str(state.get("conv_a") or ""),
             "conv_b": str(state.get("conv_b") or ""),
-            "route_data": {},
+            "route_data": {
+                "vague_count": max(0, int(state.get("vague_count") or 0)),
+                "vague_exhausted": bool(state.get("vague_exhausted")),
+            },
         }
         try:
             async with httpx.AsyncClient(
@@ -337,6 +357,55 @@ class ChatflowRouter:
             }
 
         active = state.get("active", "A")
+        policy_reply = self._reply_policy.evaluate(
+            text=query,
+            language=lang,
+            active_app=active,
+            has_attachments=bool(image_bytes or audio_bytes),
+            vague_count=max(0, int(state.get("vague_count") or 0)),
+            vague_exhausted=bool(state.get("vague_exhausted")),
+        )
+        if policy_reply is not None:
+            if policy_reply.route.startswith("vague_"):
+                state["vague_count"] = policy_reply.vague_count
+                state["vague_exhausted"] = policy_reply.vague_exhausted
+            elif policy_reply.route.startswith("verified_"):
+                state["vague_count"] = 0
+                state["vague_exhausted"] = False
+            async with self._lock:
+                self._store[session_id] = {
+                    "state": state,
+                    "ts": time.monotonic(),
+                }
+            await self._save_route_state(session_id, state)
+            log.info(
+                "[ROUTER] deterministic route=%s session=%s active=%s",
+                policy_reply.route,
+                session_id[:12],
+                active,
+            )
+            normalized_raw = {
+                "data": {
+                    "outputs": {
+                        "output": policy_reply.text,
+                        "answer": policy_reply.text,
+                        "policy_route": policy_reply.route,
+                    }
+                },
+                "conversation_id": (
+                    state.get("conv_a") if active == "A" else state.get("conv_b")
+                )
+                or "",
+            }
+            return {
+                "assistant_text": policy_reply.text,
+                "raw": normalized_raw,
+                "conversation_id": normalized_raw["conversation_id"],
+            }
+
+        if active == "A":
+            state["vague_count"] = 0
+            state["vague_exhausted"] = False
         client = self._client_for(active)
         conv_id = (state.get("conv_a") if active == "A" else state.get("conv_b")) or ""
         files = await self._build_files(client, image_bytes, image_name, audio_bytes, audio_name)

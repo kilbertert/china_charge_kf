@@ -1,0 +1,121 @@
+version: 1
+updated_at: '2026-07-27'
+
+security:
+  refuse_patterns:
+    - '(?i)(?:绕过权限|越权|提权|bypass.{0,20}(?:permission|authorization)|privilege.{0,10}escalat)'
+    - '(?i)(?:导出|显示|查看|告诉|获取|泄露|export|show|reveal|dump|get).{0,24}(?:管理员密码|密码|token|api[ _-]?key|secret|credential|凭据|密钥)'
+    - '(?i)(?:删除|清空|擦除|销毁|drop|delete|wipe|purge).{0,24}(?:所有|全部|全量|数据库|用户数据|用户账号|all|database|user data|accounts)'
+  reply:
+    zh: '我不能执行或指导绕过权限、批量删除数据，也不能提供或导出管理员密码、Token、密钥等凭据。请通过正式管理后台和审批流程，由有权限的人员操作；如果你是在处理故障或申请权限，请提供项目、账号角色和页面报错，我可以协助定位。'
+    en: 'I cannot execute or guide permission bypasses or bulk data deletion, and I cannot reveal or export administrator passwords, tokens, API keys, or other credentials. Use the approved administration and authorization process. For troubleshooting or an access request, provide the project, account role, and the exact page error.'
+
+clarification:
+  max_prompts: 2
+  vague_phrases:
+    - '这个'
+    - '那个'
+    - '这个怎么弄'
+    - '怎么弄'
+    - '怎么办'
+    - '怎么回事'
+    - '有问题'
+    - '不好用'
+    - '不行'
+    - '帮我看看'
+    - '看看这个'
+    - '弄不了'
+    - '不懂'
+    - 'this'
+    - 'how do i do this'
+    - 'it does not work'
+    - "it doesn't work"
+    - 'help me'
+  domain_terms:
+    - '计费'
+    - '订单'
+    - '设备'
+    - '场地'
+    - '站点'
+    - '用户'
+    - '财务'
+    - '报表'
+    - '充电'
+    - '支付'
+    - '退款'
+    - '优惠券'
+    - '发票'
+    - '登录'
+    - '注册'
+    - '白名单'
+    - '结算'
+    - '故障'
+    - '报错'
+    - 'billing'
+    - 'order'
+    - 'charger'
+    - 'station'
+    - 'payment'
+    - 'refund'
+    - 'invoice'
+    - 'login'
+  prompts:
+    zh:
+      - '请补充具体对象和问题。例如：计费模板入口在哪、订单支付失败、设备白名单如何添加。'
+      - '仍缺少关键对象。请按“功能或页面 + 想做什么 + 当前结果或报错”描述；如果是故障，也可以直接上传截图。'
+    en:
+      - 'Please name the feature and the exact issue, for example: billing template location, order payment failure, or adding a device allowlist entry.'
+      - 'The key object is still missing. Describe the feature or page, the intended action, and the current result or error. You can also upload a screenshot for a fault.'
+  exhausted_reply:
+    zh: '连续两次仍无法确认具体问题，本轮不再重复追问。请重新发送一条完整描述：“功能或页面 + 操作 + 当前结果或报错”；故障场景可附截图。'
+    en: 'The issue is still unclear after two prompts, so I will not repeat the same question. Send one complete description: feature or page + action + current result or error. Attach a screenshot for a fault if available.'
+
+verified_knowledge:
+  billing_templates:
+    match_terms:
+      - '计费模板'
+      - '计费规则'
+      - '费率模板'
+      - 'billing template'
+    location_terms:
+      - '在哪'
+      - '哪里'
+      - '入口'
+      - '位置'
+      - '怎么找'
+      - 'where'
+      - 'location'
+    setup_terms:
+      - '怎么设置'
+      - '如何设置'
+      - '怎么配置'
+      - '如何配置'
+      - '怎么创建'
+      - '如何创建'
+      - '新增'
+      - 'set up'
+      - 'configure'
+      - 'create'
+    holiday_terms:
+      - '节日'
+      - 'holiday'
+    standard_path:
+      - '充电桩'
+      - '计费模板管理'
+    holiday_path:
+      - '充电桩'
+      - '场地设置'
+    replies:
+      location_zh: '普通计费模板入口：充电桩 > 计费模板管理。节日计费模板入口：充电桩 > 场地设置。'
+      holiday_location_zh: '节日计费模板入口：充电桩 > 场地设置。普通计费模板则在：充电桩 > 计费模板管理。'
+      setup_zh: '普通计费模板请先进入：充电桩 > 计费模板管理；节日计费模板请进入：充电桩 > 场地设置。当前已核实的业务资料只确认这两个入口，尚未固化具体字段和生效前置条件，我不会把占位样例当成生产规则。请说明你要配置普通模板还是节日模板，并提供当前页面或版本，我再按真实界面继续。'
+      location_en: 'Standard billing templates are under Charging Pile > Billing Template Management. Holiday billing templates are under Charging Pile > Site Settings.'
+      holiday_location_en: 'Holiday billing templates are under Charging Pile > Site Settings. Standard billing templates are under Charging Pile > Billing Template Management.'
+      setup_en: 'Open Charging Pile > Billing Template Management for a standard template, or Charging Pile > Site Settings for a holiday template. These are the only verified paths in the current business materials; exact fields and activation prerequisites are not yet established as production rules. Specify the template type and provide the current page or product version for exact steps.'
+    evidence:
+      - 'Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/06-architecture-framework.md'
+    excluded_unverified_claims:
+      - '最低激活金额是创建计费模板的必需前置条件'
+      - '站点必须先审核通过才能设置计费模板'
+      - '充电站-计费管理是统一生产入口'
+      - 'IOT-站点管理-计费模板（新）是统一生产入口'

@@ -2,6 +2,13 @@
 
 基于 **Dify Workflow** 的 FastAPI 后端,与原 `app/`(Coze 版)**并列**部署,共享前端协议 `/api/chat`。
 
+## 确定性答复策略
+
+高风险拒答、模糊输入最大轮次和已核实 FAQ 快答会在调用 Dify 前由
+`charge_reply_policy.py` 处理。客户话术和已验证业务事实的单一来源是
+`shared/charge_service.yaml`。因此 Dify 后端镜像必须通过仓库根目录的
+Compose 服务构建，确保共享配置被复制到 `/app/shared/`。
+
 ## 为什么是 Workflow 不是 Chatflow
 
 通过 `GET /v1/info` 验过,目标 App `China_charge_seriver` 的 `mode = "workflow"`,因此使用 `POST /v1/workflows/run` 接口(不是 `/v1/chat-messages`)。
