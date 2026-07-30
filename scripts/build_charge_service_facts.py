@@ -194,6 +194,8 @@ def _build_data() -> dict[str, Any]:
         "replies": {
             "export_zh": "PC后台新能源车充电订单入口：财务 > 订单中心 > 充电桩订单 > 新能源车充电订单。已核实可按时间范围、站点、订单状态、充电起止时间等维度筛选，并导出当前查询结果；FAQ资料同时说明支持全量订单导出明细报表，具体以当前订单类型页面为准。",
             "export_en": "On the PC admin portal, open Finance > Order Center > Charging Pile Orders > New Energy Vehicle Charging Orders. The verified materials support filtering by time range, station, order status, and charging start/end time, then exporting the current result; the FAQ also records full-order detail export, subject to the current order type page.",
+            "status_zh": "PC后台可进入：财务 > 订单中心 > 充电桩订单 > 新能源车充电订单。该页已核实支持按订单状态、时间范围、站点和充电起止时间等条件筛选；请在订单状态中选择失败或异常状态，具体选项以当前页面为准。",
+            "status_en": "On the PC admin portal, open Finance > Order Center > Charging Pile Orders > New Energy Vehicle Charging Orders. This page supports filtering by order status, time range, station, and charging start/end time. Select the relevant failed or abnormal status available on the current page.",
         },
         "evidence": [
             "Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/常见问题解答.xlsx",

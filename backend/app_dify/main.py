@@ -3,34 +3,39 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Any, Optional
 
 import httpx
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
+from app_dify.bug_orchestrator_client import (
+    BugOrchestratorClient,
+    BugOrchestratorError,
+)
 from app_dify.config import settings
 from app_dify.charge_reply_policy import get_charge_reply_policy
 from app_dify.dify_client import (
     DifyClient,
     DifyError,
     SWITCH_TO_BUG,
-    SWITCH_TO_KB_REENTRY,
-    SWITCH_TO_KB_DONE,
     parse_switch_markers,
     strip_sys_markers,
 )
 from app_dify.response_parser import extract_assistant_text_and_media
-from app_dify.schemas import ChatResponse, MediaItem
+from app_dify.schemas import ChatResponse, MediaItem, NotificationAckRequest
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 log = logging.getLogger("app_dify")
+
+_H5_SESSION_ID_RE = re.compile(r"^h5-[0-9a-f]{32}$")
 
 app = FastAPI(
     title="China Charge - Dify H5 Chat Backend",
@@ -53,6 +58,7 @@ app.add_middleware(
 # Helpers
 # ----------------------------------------------------------------------
 
+
 def _sniff_audio_type(filename: str, declared: str | None) -> str:
     """Normalize audio MIME type for Dify upload (Dify accepts wav/mp3/m4a/webm)."""
     name = (filename or "").lower()
@@ -71,13 +77,38 @@ def _sniff_audio_type(filename: str, declared: str | None) -> str:
     return declared or "audio/wav"
 
 
+def _notification_session(
+    authorization: str = Header(default="", alias="Authorization"),
+) -> str:
+    scheme, separator, token = (authorization or "").partition(" ")
+    session_id = token.strip()
+    if (
+        not separator
+        or scheme.lower() != "bearer"
+        or not _H5_SESSION_ID_RE.fullmatch(session_id)
+    ):
+        raise HTTPException(status_code=401, detail="valid H5 session bearer required")
+    return session_id
+
+
 # 前端 language 值 -> chatflow input_language select 接受的代码
 # (app A/B 的 input_language 仅接受 ['zh','en','vi','th','ne',''])
 _LANG_MAP = {
-    "普通话": "zh", "中文": "zh", "zh": "zh", "chinese": "zh", "cn": "zh",
-    "英文": "en", "英语": "en", "en": "en", "english": "en",
-    "越南语": "vi", "vi": "vi", "vietnamese": "vi",
-    "泰语": "th", "th": "th", "thai": "th",
+    "普通话": "zh",
+    "中文": "zh",
+    "zh": "zh",
+    "chinese": "zh",
+    "cn": "zh",
+    "英文": "en",
+    "英语": "en",
+    "en": "en",
+    "english": "en",
+    "越南语": "vi",
+    "vi": "vi",
+    "vietnamese": "vi",
+    "泰语": "th",
+    "th": "th",
+    "thai": "th",
 }
 
 
@@ -110,38 +141,154 @@ def _detect_image_mime(content: bytes) -> str | None:
 
 
 # ----------------------------------------------------------------------
-# ChatflowRouter: A/B 双 app marker 路由, 与 WeCom 机器人对齐
+# ChatflowRouter: A chatflow + Bug 编排服务
 # ----------------------------------------------------------------------
 
+
 class ChatflowRouter:
-    """双 chatflow app 路由器。
+    """A chatflow 与 Bug 编排服务的单入口路由器。
 
     - app A (charge_charging_A_kbqa): KB 问答主入口
-    - app B (charge_charging_B_bugtrack): bug 追踪
-    - marker 驱动改投: SWITCH_TO_BUG(A->B) / KB_REENTRY(B->A) / KB_DONE(B->A 收尾)
-    - 每 session 维持 {active, conv_a, conv_b} 多轮状态 (内存, 进程内)
-    - 图片/音频在【发送点】按目标 app 上传, 根除跨 app file_id 失效
+    - Bug 意图直接调用 120 编排服务，不再通过 Dify B 收集或改投
+    - route-session 保留 conv_b 字段仅用于历史兼容，运行时永远使用 A
+    - 图片/音频仅在发送到 A 时上传；Bug 图片由编排服务持久化
     """
 
-    _MAX_ROUTES = 3  # 防 A<->B ping-pong 改投上限
     _SESSION_TTL = 1800  # 会话状态 TTL (秒); 超时未活动视为新会话, 对齐 wecom 30min
 
-    def __init__(self, api_base: str, key_a: str, key_b: str, end_user: str) -> None:
+    def __init__(self, api_base: str, key_a: str, end_user: str) -> None:
         if not key_a:
             raise RuntimeError("DIFY_API_KEY_A (或旧 DIFY_API_KEY) 未配置")
         self._api_base = api_base
         self._end_user = end_user
         self._client_a = DifyClient(api_base, key_a, end_user)
-        self._dual = bool(key_b)
-        self._client_b = DifyClient(api_base, key_b, end_user) if self._dual else None
         self._store: dict[str, dict] = {}  # {sid: {"state": {...}, "ts": monotonic}}
         self._lock = asyncio.Lock()
         self._reply_policy = get_charge_reply_policy()
+        self._bug_orchestrator = BugOrchestratorClient(
+            settings.bugtrack_api_base,
+            timeout=settings.bugtrack_orchestrator_timeout,
+        )
 
-    def _client_for(self, app: str) -> DifyClient:
-        if self._dual and app == "B":
-            return self._client_b  # type: ignore[return-value]
-        return self._client_a
+    def _bug_v2_enabled(self) -> bool:
+        return (
+            settings.bugtrack_orchestrator_mode.strip().lower() == "active"
+            and self._bug_orchestrator.enabled
+        )
+
+    async def _run_bug_v2(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        language: str,
+        message_id: str,
+        image_bytes: bytes | None,
+        image_name: str | None,
+    ) -> dict[str, Any]:
+        image_mime = ""
+        if image_bytes:
+            image_mime = _detect_image_mime(image_bytes) or ""
+            if not image_mime:
+                raise InvalidImageError("图片格式无效，仅支持 PNG/JPG/GIF/WEBP")
+        return await self._bug_orchestrator.message(
+            text=query,
+            session_id=session_id,
+            language=language,
+            message_id=message_id,
+            image_bytes=image_bytes,
+            image_name=image_name or "",
+            image_mime=image_mime,
+        )
+
+    async def _remember_state(self, session_id: str, state: dict[str, Any]) -> None:
+        async with self._lock:
+            self._store[session_id] = {
+                "state": dict(state),
+                "ts": time.monotonic(),
+            }
+        await self._save_route_state(session_id, state)
+
+    async def _finish_bug_v2(
+        self,
+        *,
+        session_id: str,
+        state: dict[str, Any],
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        state["active"] = "A"
+        state["bug_v2_active"] = bool(result.get("continue_session"))
+        state["vague_count"] = 0
+        state["vague_exhausted"] = False
+        await self._remember_state(session_id, state)
+        answer = str(result.get("assistant_text") or "")
+        conversation_id = str(state.get("conv_a") or "")
+        normalized_raw = {
+            "data": {
+                "outputs": {
+                    "output": answer,
+                    "answer": answer,
+                    "bug_v2": result,
+                }
+            },
+            "conversation_id": conversation_id,
+        }
+        return {
+            "assistant_text": answer,
+            "raw": normalized_raw,
+            "conversation_id": conversation_id,
+        }
+
+    async def _bug_v2_retry_response(
+        self,
+        *,
+        session_id: str,
+        state: dict[str, Any],
+        language: str,
+        keep_session: bool,
+        audio_unsupported: bool = False,
+    ) -> dict[str, Any]:
+        state["active"] = "A"
+        state["bug_v2_active"] = keep_session
+        state["vague_count"] = 0
+        state["vague_exhausted"] = False
+        await self._remember_state(session_id, state)
+        if audio_unsupported:
+            messages = {
+                "en": "Please continue this Bug report with text or an image.",
+                "vi": "Vui lòng tiếp tục báo lỗi bằng văn bản hoặc hình ảnh.",
+                "zh": "当前 Bug 提交流暂不支持语音续填，请改用文字或图片继续。",
+            }
+        else:
+            messages = {
+                "en": "The Bug service is temporarily unavailable. Please retry this message.",
+                "vi": "Dịch vụ báo lỗi tạm thời không khả dụng. Vui lòng thử lại tin nhắn này.",
+                "zh": "Bug 提交服务暂时不可用，本次消息尚未处理，请稍后重试。",
+            }
+        answer = messages.get(language, messages["zh"])
+        payload = {
+            "success": False,
+            "assistant_text": answer,
+            "state": "retry_required",
+            "continue_session": keep_session,
+            "fallback_required": False,
+        }
+        conversation_id = str(state.get("conv_a") or "")
+        normalized_raw = {
+            "data": {
+                "outputs": {
+                    "output": answer,
+                    "answer": answer,
+                    "bug_v2": payload,
+                }
+            },
+            "conversation_id": conversation_id,
+        }
+        return {
+            "assistant_text": answer,
+            "raw": normalized_raw,
+            "conversation_id": conversation_id,
+        }
 
     async def _build_files(
         self,
@@ -167,10 +314,11 @@ class ChatflowRouter:
                 content_type=ctype,
             )
             files.append(DifyClient.file_ref(fid, "image"))
-            app_name = "B" if client is self._client_b else "A"
             log.info(
-                "[ROUTER] 图片上传至 app=%s file_id=%s size=%dB mime=%s",
-                app_name, fid[:8], len(image_bytes), ctype,
+                "[ROUTER] 图片上传至 app=A file_id=%s size=%dB mime=%s",
+                fid[:8],
+                len(image_bytes),
+                ctype,
             )
         if audio_bytes:
             ctype = _sniff_audio_type(audio_name or "", None)
@@ -192,68 +340,14 @@ class ChatflowRouter:
     ) -> dict[str, Any]:
         """调用 chatflow；带文件失败时必须显式报错，禁止静默丢图后伪装成功。"""
         return await client.run_chatflow(
-            query=query, inputs=inputs, files=files or None,
+            query=query,
+            inputs=inputs,
+            files=files or None,
             conversation_id=conversation_id,
         )
 
-    async def _cache_bug_image(
-        self,
-        conversation_id: str,
-        session_id: str,
-        image_bytes: bytes,
-        image_name: str | None,
-    ) -> bool:
-        """把 H5 原图缓存到 120 Bug API，供后续确认轮写入飞书附件。"""
-        base = settings.bugtrack_api_base.rstrip("/")
-        if not base:
-            return True
-        ctype = _detect_image_mime(image_bytes)
-        if not conversation_id or not ctype:
-            return False
-        try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(settings.bugtrack_image_cache_timeout)
-            ) as client:
-                response = await client.post(
-                    f"{base}/internal/bugtrack/cache-image",
-                    data={
-                        "conversation_id": conversation_id,
-                        "session_id": session_id,
-                        "channel": "h5",
-                        "user_key": session_id,
-                    },
-                    files={
-                        "image": (
-                            image_name or "bug-screenshot.jpg",
-                            image_bytes,
-                            ctype,
-                        )
-                    },
-                )
-            if response.status_code >= 400:
-                log.warning(
-                    "[ROUTER] Bug 截图缓存失败 conv=%s HTTP=%d",
-                    conversation_id[:8], response.status_code,
-                )
-                return False
-            body = response.json()
-            if not body.get("success"):
-                log.warning("[ROUTER] Bug 截图缓存返回失败 conv=%s", conversation_id[:8])
-                return False
-            log.info(
-                "[ROUTER] Bug 截图已跨轮缓存 conv=%s size=%dB",
-                conversation_id[:8], len(image_bytes),
-            )
-            return True
-        except (httpx.HTTPError, ValueError) as exc:
-            log.warning(
-                "[ROUTER] Bug 截图缓存异常 conv=%s error=%s",
-                conversation_id[:8], str(exc)[:120],
-            )
-            return False
-
-    async def _load_route_state(self, session_id: str) -> dict[str, str] | None:
-        """Restore A/B Dify conversation ids after an H5 process restart."""
+    async def _load_route_state(self, session_id: str) -> dict[str, Any] | None:
+        """Restore A conversation state; ignore historical B routing fields."""
         base = settings.bugtrack_api_base.rstrip("/")
         if not base:
             return None
@@ -268,7 +362,13 @@ class ChatflowRouter:
             route = (response.json() or {}).get("route")
             if not isinstance(route, dict):
                 return None
-            route_data = route.get("route_data") or {}
+            route_data = route.get("route_data")
+            if route_data is None:
+                route_data = {
+                    key: value
+                    for key, value in route.items()
+                    if key not in {"active", "conv_a", "conv_b"}
+                }
             if isinstance(route_data, str):
                 try:
                     route_data = json.loads(route_data)
@@ -276,22 +376,24 @@ class ChatflowRouter:
                     route_data = {}
             if not isinstance(route_data, dict):
                 route_data = {}
-            active = "B" if route.get("active") == "B" else "A"
             try:
                 vague_count = max(0, int(route_data.get("vague_count") or 0))
             except (TypeError, ValueError):
                 vague_count = 0
             return {
-                "active": active,
+                "active": "A",
                 "conv_a": str(route.get("conv_a") or ""),
-                "conv_b": str(route.get("conv_b") or ""),
+                # Historical conv_b is deliberately ignored by the M4 runtime.
+                "conv_b": "",
                 "vague_count": vague_count,
                 "vague_exhausted": bool(route_data.get("vague_exhausted")),
+                "bug_v2_active": bool(route_data.get("bug_v2_active")),
             }
         except (httpx.HTTPError, ValueError) as exc:
             log.warning(
                 "[ROUTER] 远端路由状态读取失败 session=%s error=%s",
-                session_id[:12], str(exc)[:120],
+                session_id[:12],
+                str(exc)[:120],
             )
             return None
 
@@ -301,12 +403,15 @@ class ChatflowRouter:
         if not base:
             return True
         payload = {
-            "active": "B" if state.get("active") == "B" else "A",
+            # Keep the route-session API shape for old clients, but never persist
+            # a live B route or B conversation from the new runtime.
+            "active": "A",
             "conv_a": str(state.get("conv_a") or ""),
-            "conv_b": str(state.get("conv_b") or ""),
+            "conv_b": "",
             "route_data": {
                 "vague_count": max(0, int(state.get("vague_count") or 0)),
                 "vague_exhausted": bool(state.get("vague_exhausted")),
+                "bug_v2_active": bool(state.get("bug_v2_active")),
             },
         }
         try:
@@ -322,7 +427,8 @@ class ChatflowRouter:
         except (httpx.HTTPError, ValueError) as exc:
             log.warning(
                 "[ROUTER] 远端路由状态保存失败 session=%s error=%s",
-                session_id[:12], str(exc)[:120],
+                session_id[:12],
+                str(exc)[:120],
             )
             return False
 
@@ -336,6 +442,7 @@ class ChatflowRouter:
         audio_bytes: bytes | None = None,
         audio_name: str | None = None,
         language: str = "",
+        message_id: str = "",
     ) -> dict[str, Any]:
         query = (text or "").strip() or "收到您的消息"
         inputs: dict[str, Any] = {}
@@ -353,10 +460,67 @@ class ChatflowRouter:
 
         if not state:
             state = await self._load_route_state(session_id) or {
-                "active": "A", "conv_a": "", "conv_b": ""
+                "active": "A",
+                "conv_a": "",
+                "conv_b": "",
+                "bug_v2_active": False,
             }
 
-        active = state.get("active", "A")
+        # M4: historical route sessions may say B, but B is no longer a live app.
+        state["active"] = "A"
+        state["conv_b"] = ""
+        active = "A"
+        if state.get("bug_v2_active"):
+            if not self._bug_v2_enabled():
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=True,
+                )
+            if audio_bytes:
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=True,
+                    audio_unsupported=True,
+                )
+            try:
+                v2_result = await self._run_bug_v2(
+                    session_id=session_id,
+                    query=query,
+                    language=lang,
+                    message_id=message_id,
+                    image_bytes=image_bytes,
+                    image_name=image_name,
+                )
+            except BugOrchestratorError as exc:
+                log.error(
+                    "[ROUTER] Bug v2 continuation failed session=%s error=%s",
+                    session_id[:12],
+                    str(exc)[:160],
+                )
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=True,
+                )
+            if not v2_result.get("fallback_required"):
+                return await self._finish_bug_v2(
+                    session_id=session_id,
+                    state=state,
+                    result=v2_result,
+                )
+            state["bug_v2_active"] = False
+            return await self._bug_v2_retry_response(
+                session_id=session_id,
+                state=state,
+                language=lang,
+                keep_session=False,
+            )
+
         policy_reply = self._reply_policy.evaluate(
             text=query,
             language=lang,
@@ -369,13 +533,13 @@ class ChatflowRouter:
             if policy_reply.route.startswith("vague_"):
                 state["vague_count"] = policy_reply.vague_count
                 state["vague_exhausted"] = policy_reply.vague_exhausted
-            elif policy_reply.route.startswith("verified_"):
+            else:
                 state["vague_count"] = 0
                 state["vague_exhausted"] = False
-                # A verified FAQ is a clear topic switch away from a previous
-                # Bug draft. Preserve conv_b for audit/history, but make A the
-                # owner of subsequent normal questions.
+            if policy_reply.route.startswith("verified_"):
+                # A verified FAQ is a clear topic switch away from a Bug draft.
                 state["active"] = "A"
+                state["bug_v2_active"] = False
                 active = "A"
             async with self._lock:
                 self._store[session_id] = {
@@ -397,10 +561,7 @@ class ChatflowRouter:
                         "policy_route": policy_reply.route,
                     }
                 },
-                "conversation_id": (
-                    state.get("conv_a") if active == "A" else state.get("conv_b")
-                )
-                or "",
+                "conversation_id": state.get("conv_a") or "",
             }
             return {
                 "assistant_text": policy_reply.text,
@@ -413,102 +574,165 @@ class ChatflowRouter:
             active_app=active,
             has_attachments=bool(image_bytes or audio_bytes),
         )
-        if target_app == "B" and self._dual:
-            state["active"] = "B"
-            state["vague_count"] = 0
-            state["vague_exhausted"] = False
-            active = "B"
-            log.info(
-                "[ROUTER] deterministic app_route=B session=%s",
-                session_id[:12],
+        if target_app == "B":
+            # Bug意图只能进入编排服务。语音暂不支持；服务异常和候选回退
+            # 都明确要求重试，绝不把原消息送入 Dify A/B。
+            if audio_bytes:
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                    audio_unsupported=True,
+                )
+            if not self._bug_v2_enabled():
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                )
+            try:
+                v2_result = await self._run_bug_v2(
+                    session_id=session_id,
+                    query=query,
+                    language=lang,
+                    message_id=message_id,
+                    image_bytes=image_bytes,
+                    image_name=image_name,
+                )
+            except BugOrchestratorError as exc:
+                log.error(
+                    "[ROUTER] Bug v2 initial failed session=%s error=%s",
+                    session_id[:12],
+                    str(exc)[:160],
+                )
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                )
+            if v2_result.get("fallback_required"):
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                )
+            return await self._finish_bug_v2(
+                session_id=session_id,
+                state=state,
+                result=v2_result,
             )
 
-        if active == "A":
-            state["vague_count"] = 0
-            state["vague_exhausted"] = False
-        client = self._client_for(active)
-        conv_id = (state.get("conv_a") if active == "A" else state.get("conv_b")) or ""
-        files = await self._build_files(client, image_bytes, image_name, audio_bytes, audio_name)
-        bug_image_cached = False
-
-        # 已在 B 会话中时，必须先把本轮图片绑定草稿，再让 Dify 处理“确认写表”。
-        # 否则确认轮上传的图片会在 /add 完成后才到 120，漏出本次飞书记录。
-        if image_bytes and active == "B" and conv_id:
-            bug_image_cached = await self._cache_bug_image(
-                conv_id, session_id, image_bytes, image_name
-            )
-            if not bug_image_cached:
-                raise DifyError("Bug screenshot persistence failed before chatflow")
+        state["vague_count"] = 0
+        state["vague_exhausted"] = False
+        client = self._client_a
+        conv_id = str(state.get("conv_a") or "")
+        files = await self._build_files(
+            client, image_bytes, image_name, audio_bytes, audio_name
+        )
 
         raw = await self._call(client, query, inputs, files, conv_id)
         answer = (raw or {}).get("answer") or ""
         new_conv = (raw or {}).get("conversation_id") or ""
         if new_conv:
-            state["conv_a" if active == "A" else "conv_b"] = new_conv
+            state["conv_a"] = new_conv
 
-        # 双 app marker 驱动改投循环
-        if self._dual:
-            for _ in range(self._MAX_ROUTES):
-                answer, switches = parse_switch_markers(answer)
-                re_route: Optional[str] = None
-                if SWITCH_TO_BUG in switches and active == "A":
-                    state["active"] = "B"
-                    re_route = "B"
-                elif SWITCH_TO_KB_REENTRY in switches and active == "B":
-                    state["active"] = "A"
-                    re_route = "A"
-                elif SWITCH_TO_KB_DONE in switches and active == "B":
-                    state["active"] = "A"  # 发 B 话术, 下条->A, 不改投
-                if not re_route:
-                    break
-                target = self._client_for(re_route)
-                tconv = (state.get("conv_b") if re_route == "B" else state.get("conv_a")) or ""
-                tfiles = await self._build_files(target, image_bytes, image_name, audio_bytes, audio_name)
-                if image_bytes and re_route == "B" and tconv and not bug_image_cached:
-                    bug_image_cached = await self._cache_bug_image(
-                        tconv, session_id, image_bytes, image_name
-                    )
-                    if not bug_image_cached:
-                        raise DifyError(
-                            "Bug screenshot persistence failed before rerouted chatflow"
-                        )
-                raw2 = await self._call(target, query, inputs, tfiles, tconv)
-                answer = (raw2 or {}).get("answer") or ""
-                nc2 = (raw2 or {}).get("conversation_id") or ""
-                if nc2:
-                    state["conv_b" if re_route == "B" else "conv_a"] = nc2
-                active = state.get("active", "A")
-                new_conv = nc2 or new_conv
-
-        if image_bytes and state.get("active") == "B" and not bug_image_cached:
-            bug_conv = (state.get("conv_b") or "").strip()
-            cached = await self._cache_bug_image(
-                bug_conv, session_id, image_bytes, image_name
+        # Dify A 可能仍返回历史 Bug 切换标记。M4 不再调用 Dify B，
+        # 但该标记可作为意图门控漏判时的兼容信号，改投 v2 编排服务。
+        answer, switch_markers = parse_switch_markers(answer)
+        if SWITCH_TO_BUG in switch_markers:
+            state["conv_a"] = ""
+            state["vague_count"] = 0
+            state["vague_exhausted"] = False
+            new_conv = ""
+        if SWITCH_TO_BUG in switch_markers and self._reply_policy.blocks_bug_route(
+            query
+        ):
+            log.warning(
+                "[ROUTER] ignored legacy Bug marker for non-Bug query session=%s",
+                session_id[:12],
             )
-            if not cached:
-                answer = (
-                    answer.rstrip()
-                    + "\n\n截图暂未保存成功，请重新上传一次后再确认记录。"
+            answer = self._reply_policy.non_bug_marker_reply(lang, query)
+        elif SWITCH_TO_BUG in switch_markers:
+            log.warning(
+                "[ROUTER] legacy Bug marker rerouted to v2 session=%s",
+                session_id[:12],
+            )
+            if audio_bytes:
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                    audio_unsupported=True,
                 )
+            if not self._bug_v2_enabled():
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                )
+            try:
+                v2_result = await self._run_bug_v2(
+                    session_id=session_id,
+                    query=query,
+                    language=lang,
+                    message_id=message_id,
+                    image_bytes=image_bytes,
+                    image_name=image_name,
+                )
+            except BugOrchestratorError as exc:
+                log.error(
+                    "[ROUTER] legacy Bug marker v2 reroute failed session=%s error=%s",
+                    session_id[:12],
+                    str(exc)[:160],
+                )
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                )
+            if v2_result.get("fallback_required"):
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=False,
+                )
+            return await self._finish_bug_v2(
+                session_id=session_id,
+                state=state,
+                result=v2_result,
+            )
 
         # 剥离所有 <!--SYS:...--> 控制标记 (SWITCH 残留 + TIMER 等 WeCom 协议标记)。
         # H5 不作用于这些协议标记, 统一从用户可见文本移除。
         answer = strip_sys_markers(answer)
+        if not answer.strip():
+            answer = "抱歉，我暂时无法处理该消息，请稍后重试。"
 
         async with self._lock:
             self._store[session_id] = {"state": state, "ts": time.monotonic()}
             # lazy 清理过期项, 防长期累积 (阈值触发扫描, 避免每次请求开销)
             if len(self._store) > 512:
                 cutoff = time.monotonic() - self._SESSION_TTL
-                for k in [k for k, v in self._store.items() if v.get("ts", 0.0) <= cutoff]:
+                for k in [
+                    k for k, v in self._store.items() if v.get("ts", 0.0) <= cutoff
+                ]:
                     self._store.pop(k, None)
 
         await self._save_route_state(session_id, state)
 
         log.info(
-            "[ROUTER] session=%s active=%s conv_a=%s conv_b=%s answer_len=%d",
-            session_id[:12], state.get("active"), (state.get("conv_a") or "")[:8],
-            (state.get("conv_b") or "")[:8], len(answer),
+            "[ROUTER] session=%s active=A conv_a=%s answer_len=%d",
+            session_id[:12],
+            (state.get("conv_a") or "")[:8],
+            len(answer),
         )
 
         # 归一化为 workflow 形态, 复用 response_parser 抽取 text + media
@@ -516,13 +740,16 @@ class ChatflowRouter:
             "data": {"outputs": {"output": answer, "answer": answer}},
             "conversation_id": new_conv,
         }
-        return {"assistant_text": answer, "raw": normalized_raw, "conversation_id": new_conv}
+        return {
+            "assistant_text": answer,
+            "raw": normalized_raw,
+            "conversation_id": new_conv,
+        }
 
 
 router = ChatflowRouter(
     api_base=settings.dify_api_base,
     key_a=settings.api_key_a,
-    key_b=settings.dify_api_key_b,
     end_user=settings.dify_end_user,
 )
 
@@ -531,6 +758,7 @@ router = ChatflowRouter(
 # Endpoints
 # ----------------------------------------------------------------------
 
+
 @app.get("/api/health")
 async def health() -> dict:
     return {
@@ -538,9 +766,50 @@ async def health() -> dict:
         "backend": "dify-chatflow",
         "api_base": settings.dify_api_base,
         "end_user": settings.dify_end_user,
-        "dual_app": router._dual,
+        "dual_app": False,
         "bugtrack_image_cache": bool(settings.bugtrack_api_base),
+        "bugtrack_orchestrator_mode": settings.bugtrack_orchestrator_mode,
+        "bugtrack_orchestrator_active": router._bug_v2_enabled(),
     }
+
+
+@app.get("/api/notifications", response_model=None)
+async def notifications(
+    limit: int = 20,
+    sid: str = Depends(_notification_session),
+) -> dict[str, Any] | JSONResponse:
+    if not router._bug_orchestrator.enabled:
+        return {"notifications": []}
+    try:
+        items = await router._bug_orchestrator.notifications(
+            session_id=sid, limit=max(1, min(limit, 100))
+        )
+    except BugOrchestratorError as exc:
+        log.warning("Bug notification fetch failed session=%s: %s", sid[:12], exc)
+        return JSONResponse(
+            status_code=502, content={"detail": "Bug notification service unavailable"}
+        )
+    return {"notifications": items}
+
+
+@app.post("/api/notifications/ack", response_model=None)
+async def acknowledge_notifications(
+    req: NotificationAckRequest,
+    sid: str = Depends(_notification_session),
+) -> dict[str, Any] | JSONResponse:
+    if not router._bug_orchestrator.enabled:
+        return {"acknowledged": 0}
+    try:
+        count = await router._bug_orchestrator.acknowledge_notifications(
+            session_id=sid,
+            notification_ids=req.notification_ids,
+        )
+    except BugOrchestratorError as exc:
+        log.warning("Bug notification ack failed session=%s: %s", sid[:12], exc)
+        return JSONResponse(
+            status_code=502, content={"detail": "Bug notification service unavailable"}
+        )
+    return {"acknowledged": count}
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -553,11 +822,13 @@ async def chat(
     text: str = Form(""),
     image: Optional[UploadFile] = File(default=None),
     audio: Optional[UploadFile] = File(default=None),
-    language: str = Form("中文"),
+    language: str = Form(""),
     session_id: Optional[str] = Form(default=None),
+    message_id: Optional[str] = Form(default=None),
 ) -> ChatResponse:
     # session_id: 前端 localStorage 持久化; 首次不传则后端生成并回传
     sid = (session_id or "").strip() or f"h5-{uuid.uuid4().hex}"
+    mid = (message_id or "").strip() or f"h5msg-{uuid.uuid4().hex}"
 
     image_bytes: bytes | None = None
     image_name: str | None = None
@@ -601,6 +872,7 @@ async def chat(
             audio_bytes=audio_bytes,
             audio_name=audio_name,
             language=_normalize_language(language),
+            message_id=mid,
         )
     except InvalidImageError as e:
         return JSONResponse(

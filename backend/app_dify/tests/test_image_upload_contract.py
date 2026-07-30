@@ -7,12 +7,20 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
+from app_dify.bug_orchestrator_client import BugOrchestratorError
+from app_dify.config import settings
 from app_dify.dify_client import DifyClient, DifyError
 from app_dify.main import app, router
 
-
 client = TestClient(app)
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"test-image-payload"
+
+
+class FakeBugOrchestrator:
+    enabled = True
+
+    def __init__(self, *, result=None, side_effect=None) -> None:
+        self.message = AsyncMock(return_value=result, side_effect=side_effect)
 
 
 def test_invalid_image_is_rejected_before_dify() -> None:
@@ -38,12 +46,14 @@ def test_dify_image_failure_is_visible_and_never_retried_without_file() -> None:
             patch.object(
                 DifyClient,
                 "run_chatflow",
-                AsyncMock(side_effect=DifyError("Dify chatflow HTTP error: 400 vision failed")),
+                AsyncMock(
+                    side_effect=DifyError("Dify chatflow HTTP error: 400 vision failed")
+                ),
             ) as run,
         ):
             resp = client.post(
                 "/api/chat",
-                data={"text": "请看截图", "session_id": sid},
+                data={"text": "请分析这张产品图片", "session_id": sid},
                 files={"image": ("screen.png", PNG_BYTES, "image/png")},
             )
 
@@ -56,31 +66,24 @@ def test_dify_image_failure_is_visible_and_never_retried_without_file() -> None:
         router._store.pop(sid, None)
 
 
-def test_obvious_bug_image_is_uploaded_directly_to_b() -> None:
+def test_obvious_bug_image_goes_directly_to_v2_without_dify_upload() -> None:
     sid = "test-image-cross-app"
-    old_dual = router._dual
-    old_client_b = router._client_b
-    router._dual = True
-    router._client_b = DifyClient("http://dify.test/v1", "app-test-b", "test-user")
+    fake = FakeBugOrchestrator(
+        result={
+            "success": True,
+            "assistant_text": "请确认反馈。",
+            "state": "ready_to_submit",
+            "continue_session": True,
+            "fallback_required": False,
+        }
+    )
     try:
         with (
-            patch.object(
-                DifyClient,
-                "upload_file",
-                AsyncMock(return_value="upload-b"),
-            ) as upload,
-            patch.object(
-                DifyClient,
-                "run_chatflow",
-                AsyncMock(
-                    return_value={"answer": "已读取截图。", "conversation_id": "conv-b"}
-                ),
-            ) as run,
-            patch.object(
-                router,
-                "_cache_bug_image",
-                AsyncMock(return_value=True),
-            ) as cache,
+            patch.object(settings, "bugtrack_orchestrator_mode", "active"),
+            patch.object(router, "_bug_orchestrator", fake),
+            patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+            patch.object(DifyClient, "upload_file", AsyncMock()) as upload,
+            patch.object(DifyClient, "run_chatflow", AsyncMock()) as run,
         ):
             resp = client.post(
                 "/api/chat",
@@ -89,42 +92,25 @@ def test_obvious_bug_image_is_uploaded_directly_to_b() -> None:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["assistant_text"] == "已读取截图。"
-        assert upload.await_count == 1
-        assert run.await_count == 1
-        assert run.await_args.kwargs["files"][0]["upload_file_id"] == "upload-b"
-        cache.assert_awaited_once_with("conv-b", sid, PNG_BYTES, "screen.png")
+        assert resp.json()["assistant_text"] == "请确认反馈。"
+        fake.message.assert_awaited_once()
+        assert fake.message.await_args.kwargs["image_bytes"] == PNG_BYTES
+        upload.assert_not_awaited()
+        run.assert_not_awaited()
     finally:
         router._store.pop(sid, None)
-        router._dual = old_dual
-        router._client_b = old_client_b
 
 
-def test_bug_image_cache_failure_is_visible_to_user() -> None:
+def test_bug_v2_image_failure_is_visible_without_dify_fallback() -> None:
     sid = "test-image-cache-failure"
-    old_dual = router._dual
-    old_client_b = router._client_b
-    router._dual = True
-    router._client_b = DifyClient("http://dify.test/v1", "app-test-b", "test-user")
+    fake = FakeBugOrchestrator(side_effect=BugOrchestratorError("timeout"))
     try:
         with (
-            patch.object(
-                DifyClient,
-                "upload_file",
-                AsyncMock(return_value="upload-b"),
-            ),
-            patch.object(
-                DifyClient,
-                "run_chatflow",
-                AsyncMock(
-                    return_value={"answer": "请确认反馈。", "conversation_id": "conv-b"}
-                ),
-            ),
-            patch.object(
-                router,
-                "_cache_bug_image",
-                AsyncMock(return_value=False),
-            ),
+            patch.object(settings, "bugtrack_orchestrator_mode", "active"),
+            patch.object(router, "_bug_orchestrator", fake),
+            patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+            patch.object(DifyClient, "upload_file", AsyncMock()) as upload,
+            patch.object(DifyClient, "run_chatflow", AsyncMock()) as run,
         ):
             resp = client.post(
                 "/api/chat",
@@ -133,39 +119,41 @@ def test_bug_image_cache_failure_is_visible_to_user() -> None:
             )
 
         assert resp.status_code == 200
-        assert "截图暂未保存成功" in resp.json()["assistant_text"]
+        assert "尚未处理" in resp.json()["assistant_text"]
+        upload.assert_not_awaited()
+        run.assert_not_awaited()
     finally:
         router._store.pop(sid, None)
-        router._dual = old_dual
-        router._client_b = old_client_b
 
 
-def test_confirmation_turn_persists_image_before_dify_can_write_record() -> None:
+def test_historical_b_state_with_active_v2_sends_confirmation_to_orchestrator() -> None:
     sid = "test-image-confirmation-order"
-    old_dual = router._dual
-    old_client_b = router._client_b
-    router._dual = True
-    router._client_b = DifyClient("http://dify.test/v1", "app-test-b", "test-user")
     router._store[sid] = {
-        "state": {"active": "B", "conv_a": "conv-a", "conv_b": "conv-b-existing"},
+        "state": {
+            "active": "B",
+            "conv_a": "conv-a",
+            "conv_b": "conv-b-existing",
+            "bug_v2_active": True,
+        },
         "ts": time.monotonic(),
     }
-    order: list[str] = []
-
-    async def cache_first(*_args, **_kwargs):
-        order.append("cache")
-        return True
-
-    async def run_after_cache(*_args, **_kwargs):
-        order.append("dify")
-        return {"answer": "已记录。", "conversation_id": "conv-b-existing"}
+    fake = FakeBugOrchestrator(
+        result={
+            "success": True,
+            "assistant_text": "已记录。",
+            "state": "submitted",
+            "continue_session": False,
+            "fallback_required": False,
+        }
+    )
 
     try:
         with (
-            patch.object(DifyClient, "upload_file", AsyncMock(return_value="upload-b")),
-            patch.object(DifyClient, "run_chatflow", AsyncMock(side_effect=run_after_cache)),
-            patch.object(router, "_cache_bug_image", AsyncMock(side_effect=cache_first)),
+            patch.object(settings, "bugtrack_orchestrator_mode", "active"),
+            patch.object(router, "_bug_orchestrator", fake),
             patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+            patch.object(DifyClient, "upload_file", AsyncMock()) as upload,
+            patch.object(DifyClient, "run_chatflow", AsyncMock()) as run,
         ):
             resp = client.post(
                 "/api/chat",
@@ -174,8 +162,13 @@ def test_confirmation_turn_persists_image_before_dify_can_write_record() -> None
             )
 
         assert resp.status_code == 200
-        assert order == ["cache", "dify"]
+        assert resp.json()["assistant_text"] == "已记录。"
+        fake.message.assert_awaited_once()
+        assert fake.message.await_args.kwargs["image_bytes"] == PNG_BYTES
+        upload.assert_not_awaited()
+        run.assert_not_awaited()
+        state = router._store[sid]["state"]
+        assert state["active"] == "A"
+        assert state["conv_b"] == ""
     finally:
         router._store.pop(sid, None)
-        router._dual = old_dual
-        router._client_b = old_client_b

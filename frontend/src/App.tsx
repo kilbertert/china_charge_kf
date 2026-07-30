@@ -6,6 +6,8 @@ import './styles/health-consult.css'
 const HealthConsultApp = lazy(() => import('./HealthConsultApp'))
 // === End ===
 
+const NOTIFICATION_REQUEST_TIMEOUT_MS = 10_000
+
 // 兼容性更好的 UUID 生成函数
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -268,6 +270,87 @@ function ChargeChatApp() {
   }, [messages.length, isSending, isMorePanelOpen])
 
   useEffect(() => {
+    if (!sessionId) return
+    let stopped = false
+    let polling = false
+    let activeController: AbortController | null = null
+
+    const pollNotifications = async () => {
+      if (stopped || polling || document.visibilityState === 'hidden') return
+      polling = true
+      const controller = new AbortController()
+      activeController = controller
+      const timeoutId = window.setTimeout(() => controller.abort(), NOTIFICATION_REQUEST_TIMEOUT_MS)
+      try {
+        const authorization = { Authorization: `Bearer ${sessionId}` }
+        const response = await fetch(`${apiBase}/api/notifications`, {
+          headers: authorization,
+          signal: controller.signal,
+        })
+        if (!response.ok) return
+        const data = await response.json().catch(() => null)
+        const notifications: unknown[] = Array.isArray(data?.notifications) ? data.notifications : []
+        const valid = notifications.filter(
+          (item: unknown): item is { notification_id: string; message: string } => {
+            if (!item || typeof item !== 'object') return false
+            const value = item as { notification_id?: unknown; message?: unknown }
+            return (
+              typeof value.notification_id === 'string' &&
+              value.notification_id.length > 0 &&
+              typeof value.message === 'string'
+            )
+          },
+        )
+        if (!valid.length || stopped) return
+
+        setMessages((previous) => {
+          const known = new Set(previous.map((message) => message.id))
+          const incoming = valid.flatMap((item) => {
+            const id = `notification-${item.notification_id}`
+            if (known.has(id)) return []
+            known.add(id)
+            return [{
+              id: `notification-${item.notification_id}`,
+              role: 'assistant' as const,
+              text: item.message,
+            }]
+          })
+          return incoming.length ? [...previous, ...incoming] : previous
+        })
+
+        await fetch(`${apiBase}/api/notifications/ack`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${sessionId}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({ notification_ids: valid.map((item) => item.notification_id) }),
+        })
+      } catch {
+        // Progress notifications are retried on the next poll.
+      } finally {
+        window.clearTimeout(timeoutId)
+        if (activeController === controller) activeController = null
+        polling = false
+      }
+    }
+
+    void pollNotifications()
+    const intervalId = window.setInterval(() => void pollNotifications(), 30_000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void pollNotifications()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stopped = true
+      activeController?.abort()
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [apiBase, sessionId])
+
+  useEffect(() => {
     handleSendRef.current = handleSend
   })
 
@@ -413,6 +496,7 @@ function ChargeChatApp() {
       const fd = new FormData()
       fd.append('text', trimmed)
       fd.append('language', languageParams[lang])
+      fd.append('message_id', generateId())
       if (sessionId) fd.append('session_id', sessionId)
       if (file) fd.append('image', file)
       if (audioBlob) {

@@ -37,3 +37,7 @@ class ChatResponse(BaseModel):
         default=None,
         description="会话标识; 首次请求可不传(后端生成并返回), 后续请求需回传以续接多轮与 A/B 路由状态。",
     )
+
+
+class NotificationAckRequest(BaseModel):
+    notification_ids: list[str] = Field(default_factory=list, max_length=100)
