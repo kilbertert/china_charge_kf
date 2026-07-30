@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
+import pytest
 
-from app_dify.bug_orchestrator_client import BugOrchestratorError
+from app_dify.bug_orchestrator_client import (
+    BugOrchestratorClient,
+    BugOrchestratorError,
+)
 from app_dify.config import settings
 from app_dify.dify_client import DifyClient
 from app_dify.main import app, router
@@ -224,6 +228,8 @@ def test_candidate_confirmation_stays_in_v2_and_never_calls_b() -> None:
 
 
 def test_h5_notification_proxy_fetches_and_acknowledges() -> None:
+    session_id = "h5-0123456789abcdef0123456789abcdef"
+    headers = {"Authorization": f"Bearer {session_id}"}
     fake = FakeBugOrchestrator()
     fake.notifications.return_value = [
         {
@@ -233,23 +239,83 @@ def test_h5_notification_proxy_fetches_and_acknowledges() -> None:
     ]
     fake.acknowledge_notifications.return_value = 1
     with patch.object(router, "_bug_orchestrator", fake):
-        fetched = client.get("/api/notifications", params={"session_id": "h5-session"})
+        fetched = client.get("/api/notifications", headers=headers)
         acknowledged = client.post(
             "/api/notifications/ack",
-            json={
-                "session_id": "h5-session",
-                "notification_ids": ["notice-1"],
-            },
+            headers=headers,
+            json={"notification_ids": ["notice-1"]},
         )
 
     assert fetched.status_code == 200
     assert fetched.json()["notifications"][0]["notification_id"] == "notice-1"
     assert acknowledged.status_code == 200
     assert acknowledged.json()["acknowledged"] == 1
-    fake.notifications.assert_awaited_once_with(session_id="h5-session", limit=20)
+    fake.notifications.assert_awaited_once_with(session_id=session_id, limit=20)
     fake.acknowledge_notifications.assert_awaited_once_with(
-        session_id="h5-session", notification_ids=["notice-1"]
+        session_id=session_id, notification_ids=["notice-1"]
     )
+
+
+def test_h5_notification_proxy_requires_server_session_bearer() -> None:
+    fake = FakeBugOrchestrator()
+    with patch.object(router, "_bug_orchestrator", fake):
+        missing = client.get(
+            "/api/notifications",
+            params={"session_id": "h5-0123456789abcdef0123456789abcdef"},
+        )
+        invalid = client.post(
+            "/api/notifications/ack",
+            headers={"Authorization": "Bearer user-chosen-session"},
+            json={"notification_ids": ["notice-1"]},
+        )
+
+    assert missing.status_code == 401
+    assert invalid.status_code == 401
+    fake.notifications.assert_not_awaited()
+    fake.acknowledge_notifications.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_notification_client_rejects_non_list_payload() -> None:
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {"success": True, "notifications": "invalid"}
+    http = AsyncMock()
+    http.get.return_value = response
+    context = AsyncMock()
+    context.__aenter__.return_value = http
+
+    with patch(
+        "app_dify.bug_orchestrator_client.httpx.AsyncClient",
+        return_value=context,
+    ):
+        with pytest.raises(BugOrchestratorError, match="invalid notification"):
+            await BugOrchestratorClient("http://bugtrack").notifications(
+                session_id="h5-0123456789abcdef0123456789abcdef"
+            )
+
+
+@pytest.mark.asyncio
+async def test_notification_client_rejects_invalid_ack_count() -> None:
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {"success": True, "acknowledged": "one"}
+    http = AsyncMock()
+    http.post.return_value = response
+    context = AsyncMock()
+    context.__aenter__.return_value = http
+
+    with patch(
+        "app_dify.bug_orchestrator_client.httpx.AsyncClient",
+        return_value=context,
+    ):
+        with pytest.raises(BugOrchestratorError, match="invalid notification"):
+            await BugOrchestratorClient(
+                "http://bugtrack"
+            ).acknowledge_notifications(
+                session_id="h5-0123456789abcdef0123456789abcdef",
+                notification_ids=["notice-1"],
+            )
 
 
 def test_bug_image_goes_to_v2_without_dify_upload() -> None:

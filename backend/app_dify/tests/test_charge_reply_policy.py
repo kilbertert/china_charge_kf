@@ -111,6 +111,14 @@ def test_non_bug_phrase_matrix_stays_in_faq(text: str) -> None:
 def test_attachment_text_requires_actual_fault_signal() -> None:
     assert (
         router._reply_policy.route_target(
+            text="截图功能在哪里？",
+            active_app="A",
+            has_attachments=True,
+        )
+        is None
+    )
+    assert (
+        router._reply_policy.route_target(
             text="这是设备二维码",
             active_app="A",
             has_attachments=True,
@@ -156,6 +164,14 @@ def test_spacing_punctuation_and_case_do_not_change_routing() -> None:
 
 
 def test_incident_and_knowledge_phrase_combinations_remain_separated() -> None:
+    assert (
+        router._reply_policy.route_target(
+            text="我的订单支付为什么失败？",
+            active_app="A",
+            has_attachments=False,
+        )
+        == "B"
+    )
     incident_prefixes = ("我的", "今天", "点击保存后")
     bug_signals = ("失败", "未知错误", "一直转圈", "无响应")
     for prefix in incident_prefixes:

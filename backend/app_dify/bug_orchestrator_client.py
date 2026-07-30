@@ -92,7 +92,9 @@ class BugOrchestratorClient:
             raise BugOrchestratorError(str(exc)) from exc
         if not isinstance(body, dict) or not body.get("success"):
             raise BugOrchestratorError("invalid notification response")
-        notifications = body.get("notifications") or []
+        notifications = body.get("notifications", [])
+        if not isinstance(notifications, list):
+            raise BugOrchestratorError("invalid notification response")
         return [item for item in notifications if isinstance(item, dict)]
 
     async def acknowledge_notifications(
@@ -119,7 +121,14 @@ class BugOrchestratorClient:
             raise BugOrchestratorError(str(exc)) from exc
         if not isinstance(body, dict) or not body.get("success"):
             raise BugOrchestratorError("invalid notification acknowledgement")
-        return int(body.get("acknowledged") or 0)
+        acknowledged = body.get("acknowledged", 0)
+        if (
+            isinstance(acknowledged, bool)
+            or not isinstance(acknowledged, int)
+            or acknowledged < 0
+        ):
+            raise BugOrchestratorError("invalid notification acknowledgement")
+        return acknowledged
 
 
 __all__ = ["BugOrchestratorClient", "BugOrchestratorError"]

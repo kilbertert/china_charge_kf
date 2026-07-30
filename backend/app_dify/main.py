@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Any, Optional
 
 import httpx
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -33,6 +34,8 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 log = logging.getLogger("app_dify")
+
+_H5_SESSION_ID_RE = re.compile(r"^h5-[0-9a-f]{32}$")
 
 app = FastAPI(
     title="China Charge - Dify H5 Chat Backend",
@@ -72,6 +75,20 @@ def _sniff_audio_type(filename: str, declared: str | None) -> str:
     if name.endswith(".mp4"):
         return "audio/mp4"
     return declared or "audio/wav"
+
+
+def _notification_session(
+    authorization: str = Header(default="", alias="Authorization"),
+) -> str:
+    scheme, separator, token = (authorization or "").partition(" ")
+    session_id = token.strip()
+    if (
+        not separator
+        or scheme.lower() != "bearer"
+        or not _H5_SESSION_ID_RE.fullmatch(session_id)
+    ):
+        raise HTTPException(status_code=401, detail="valid H5 session bearer required")
+    return session_id
 
 
 # 前端 language 值 -> chatflow input_language select 接受的代码
@@ -602,9 +619,8 @@ class ChatflowRouter:
                 result=v2_result,
             )
 
-        if active == "A":
-            state["vague_count"] = 0
-            state["vague_exhausted"] = False
+        state["vague_count"] = 0
+        state["vague_exhausted"] = False
         client = self._client_a
         conv_id = str(state.get("conv_a") or "")
         files = await self._build_files(
@@ -619,7 +635,6 @@ class ChatflowRouter:
 
         # Dify A 可能仍返回历史 Bug 切换标记。M4 不再调用 Dify B，
         # 但该标记可作为意图门控漏判时的兼容信号，改投 v2 编排服务。
-        bug_v2_payload: dict[str, Any] | None = None
         answer, switch_markers = parse_switch_markers(answer)
         if SWITCH_TO_BUG in switch_markers:
             state["conv_a"] = ""
@@ -714,11 +729,8 @@ class ChatflowRouter:
         )
 
         # 归一化为 workflow 形态, 复用 response_parser 抽取 text + media
-        outputs: dict[str, Any] = {"output": answer, "answer": answer}
-        if bug_v2_payload is not None:
-            outputs["bug_v2"] = bug_v2_payload
         normalized_raw = {
-            "data": {"outputs": outputs},
+            "data": {"outputs": {"output": answer, "answer": answer}},
             "conversation_id": new_conv,
         }
         return {
@@ -754,11 +766,11 @@ async def health() -> dict:
     }
 
 
-@app.get("/api/notifications")
-async def notifications(session_id: str, limit: int = 20) -> dict[str, Any]:
-    sid = (session_id or "").strip()
-    if not sid:
-        return JSONResponse(status_code=400, content={"detail": "session_id required"})
+@app.get("/api/notifications", response_model=None)
+async def notifications(
+    limit: int = 20,
+    sid: str = Depends(_notification_session),
+) -> dict[str, Any] | JSONResponse:
     if not router._bug_orchestrator.enabled:
         return {"notifications": []}
     try:
@@ -773,11 +785,11 @@ async def notifications(session_id: str, limit: int = 20) -> dict[str, Any]:
     return {"notifications": items}
 
 
-@app.post("/api/notifications/ack")
-async def acknowledge_notifications(req: NotificationAckRequest) -> dict[str, Any]:
-    sid = req.session_id.strip()
-    if not sid:
-        return JSONResponse(status_code=400, content={"detail": "session_id required"})
+@app.post("/api/notifications/ack", response_model=None)
+async def acknowledge_notifications(
+    req: NotificationAckRequest,
+    sid: str = Depends(_notification_session),
+) -> dict[str, Any] | JSONResponse:
     if not router._bug_orchestrator.enabled:
         return {"acknowledged": 0}
     try:

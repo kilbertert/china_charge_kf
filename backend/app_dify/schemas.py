@@ -40,5 +40,4 @@ class ChatResponse(BaseModel):
 
 
 class NotificationAckRequest(BaseModel):
-    session_id: str
-    notification_ids: list[str] = Field(default_factory=list)
+    notification_ids: list[str] = Field(default_factory=list, max_length=100)
