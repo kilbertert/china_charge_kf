@@ -29,6 +29,15 @@ clarification:
   - it doesn't work
   - help me
   domain_terms:
+  - 页面
+  - 功能
+  - 系统
+  - 后台
+  - 小程序
+  - 应用
+  - 按钮
+  - 浏览器
+  - 截图
   - 计费
   - 订单
   - 设备
@@ -67,10 +76,54 @@ clarification:
     zh: 连续两次仍无法确认具体问题，本轮不再重复追问。请重新发送一条完整描述：“功能或页面 + 操作 + 当前结果或报错”；故障场景可附截图。
     en: 'The issue is still unclear after two prompts, so I will not repeat the same question. Send one complete description: feature or page + action + current result or error. Attach a screenshot for a fault if available.'
 routing:
+  non_bug_marker_reply:
+    zh: 我理解你是在咨询错误或故障信息，未创建问题反馈。请补充具体错误码、功能页面和想了解的内容。
+    en: I understand this as a question about an error or fault, so no Bug report was created. Provide the exact error code, page, and the information you need.
+  knowledge_marker_reply:
+    zh: 我识别到这是功能使用咨询，未创建问题反馈。请补充你使用的端（PC后台/管家端/用户端）、功能模块，以及想查询的入口或配置规则。
+    en: I understand this as a product-usage question, so no Bug report was created. Provide the endpoint (PC admin, operator, or user app), feature, and the menu or configuration rule you need.
+  code_info_terms:
+  - 错误码
+  - 故障码
+  - 报错码
+  - error code
+  - fault code
+  code_info_reply:
+    zh: 请提供具体错误码、出现的功能页面和操作场景，我再根据知识库帮你查询。如果它已导致无法操作，请同时说明操作步骤和当前结果，我会转入问题反馈流程。
+    en: Provide the exact error code, page, and action so I can check the knowledge base. If the error blocks an operation, also describe the steps and current result so I can start a Bug report.
   bug_terms:
   - 报错
   - 失败
   - 异常
+  - 错误
+  - 故障
+  - 卡住
+  - 卡死
+  - 无响应
+  - 打不开
+  - 点不动
+  - 卡顿
+  - 转圈
+  - 一直加载
+  - 加载不出来
+  - 白屏
+  - 黑屏
+  - 超时
+  - 不显示
+  - 查不到
+  - 数据不对
+  - 金额不对
+  - 重复扣费
+  - 登不上
+  - 连不上
+  - 掉线
+  - 离线
+  - 错乱
+  - 乱码
+  - 页面有问题
+  - 请看截图
+  - 请看图片
+  - 请看图
   - 用不了
   - 不生效
   - 没反应
@@ -80,9 +133,155 @@ routing:
   - 空白
   - 充不上
   - 中断
+  - error
+  - failed
+  - failure
+  - exception
+  - crash
+  - stuck
+  - unresponsive
+  - not responding
+  - won't open
+  - doesn't open
+  - does not open
+  - not working
+  - doesn't work
+  - does not work
+  - cannot connect
+  - can't connect
+  - not loading
+  - timed out
+  - timeout
   inability_terms:
   - 无法
   - 不能
+  - cannot
+  - can't
+  - unable to
+  capability_terms:
+  - 能不能
+  - 可不可以
+  - 是否可以
+  - 支持吗
+  - 支持不支持
+  - 是否支持
+  - 能否
+  - 有没有
+  - 是否有
+  - can i
+  - is it possible
+  - does it support
+  - is it supported
+  - can the system
+  - can this
+  knowledge_question_terms:
+  - 为什么会
+  - 为什么
+  - 原因是什么
+  - 在哪里查看
+  - 哪里查看
+  - 在哪查看
+  - 在哪看
+  - 怎么查
+  - 如何查询
+  - 怎么查询
+  - 如何配置
+  - 怎么配置
+  - 在哪里配置
+  - 哪里配置
+  - 如何设置
+  - 怎么设置
+  - 怎么导出
+  - 如何导出
+  - 导出规则
+  - 使用说明
+  - 说明文档
+  - where can i view
+  - where to view
+  - how to configure
+  - how to set
+  - how to export
+  - why does
+  - documentation
+  strong_incident_terms:
+  - 这次
+  - 刚刚
+  - 刚才
+  - 点击
+  - 操作后
+  - 失败后
+  - 报错后
+  - 异常后
+  - 错误后
+  - 故障后
+  - 一直
+  - 突然
+  - 导致
+  - 仍然
+  - 还是
+  - 为什么会这样
+  - 没法
+  - 无法
+  - 没有反应
+  - just now
+  - 'after '
+  - 'when '
+  - keeps
+  - suddenly
+  informational_terms:
+  - 错误码
+  - 故障码
+  - 报错码
+  - 错误码是什么意思
+  - 错误是什么意思
+  - 故障码是什么意思
+  - 如何避免操作错误
+  - 怎么避免操作错误
+  - 有哪些
+  - 哪些
+  - 原因有哪些
+  - 常见原因
+  - 是什么意思
+  - 什么是
+  - 如何避免
+  - what does
+  - what are the common
+  - how to avoid
+  - meaning of
+  - error code
+  incident_terms:
+  - 提示
+  - 显示
+  - 返回
+  - 出现
+  - 发生
+  - 点击
+  - 操作后
+  - 一直
+  - 突然
+  - 现在
+  - 刚才
+  - 没法
+  - 无法
+  - 没有反应
+  - 我的
+  - 我在
+  - 我们
+  - 这次
+  - 当前
+  - 今天
+  - 刚刚
+  - 导致
+  - 仍然
+  - 还是
+  - ' when '
+  - ' after '
+  - shows
+  - displayed
+  - appears
+  - returns
+  - keeps
+  - suddenly
   progress_terms:
   - 解决了吗
   - 修复了吗
@@ -179,6 +378,26 @@ matchers:
     order_terms:
     - 订单
     - order
+  order_status:
+    match_terms:
+    - 失败订单
+    - 异常订单
+    - 订单状态
+    - failed orders
+    - failed order
+    - abnormal orders
+    - abnormal order
+    - order status
+    intent_terms:
+    - 在哪
+    - 哪里
+    - 查看
+    - 查询
+    - 筛选
+    - where
+    - view
+    - find
+    - filter
 version: 2
 knowledge_revision: dd9bfaf09eb370c3
 generated_sources:
@@ -253,6 +472,8 @@ verified_knowledge:
     replies:
       export_zh: PC后台新能源车充电订单入口：财务 > 订单中心 > 充电桩订单 > 新能源车充电订单。已核实可按时间范围、站点、订单状态、充电起止时间等维度筛选，并导出当前查询结果；FAQ资料同时说明支持全量订单导出明细报表，具体以当前订单类型页面为准。
       export_en: On the PC admin portal, open Finance > Order Center > Charging Pile Orders > New Energy Vehicle Charging Orders. The verified materials support filtering by time range, station, order status, and charging start/end time, then exporting the current result; the FAQ also records full-order detail export, subject to the current order type page.
+      status_zh: PC后台可进入：财务 > 订单中心 > 充电桩订单 > 新能源车充电订单。该页已核实支持按订单状态、时间范围、站点和充电起止时间等条件筛选；请在订单状态中选择失败或异常状态，具体选项以当前页面为准。
+      status_en: On the PC admin portal, open Finance > Order Center > Charging Pile Orders > New Energy Vehicle Charging Orders. This page supports filtering by order status, time range, station, and charging start/end time. Select the relevant failed or abnormal status available on the current page.
     evidence:
     - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/常见问题解答.xlsx
     - Workflow-China_charge_seriver-draft-9380/32-6.17（充电桩知识库）/sys_menu_整理后.xlsx

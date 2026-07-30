@@ -16,12 +16,11 @@ class Settings(BaseSettings):
     port: int = 8012  # default 8012 to avoid collision with coze backend (8011)
 
     # ---- Dify ----
-    # Chatflow (advanced-chat) app 体系: A=KB 问答, B=bug 追踪。
-    # 双 app marker 路由(SWITCH_TO_BUG / KB_REENTRY / KB_DONE)与 WeCom 机器人对齐。
+    # M4 运行态只使用 A=KB 问答；B token 可保留为人工回滚资产。
     dify_api_base: str = "https://api.dify.ai/v1"
     # app A token (必填)。dify_api_key 为旧单 app 兼容回退。
     dify_api_key_a: str = ""
-    dify_api_key_b: str = ""  # app B token; 留空 = 单 app 模式(不做 bug 改投)
+    dify_api_key_b: str = ""  # 旧 app B token，仅回滚时人工使用
     dify_api_key: str = ""  # 旧字段, 仅当 dify_api_key_a 为空时作 A 回退
     # end-user 标识 (Dify 强制要求)。H5 用 session_id 作 end_user 实现按会话隔离;
     # 此字段为健康检查展示与兜底默认值。
@@ -30,11 +29,12 @@ class Settings(BaseSettings):
     # input_language。留空则不传, Dify 用字段 default。
     dify_chatflow_input_language: str = ""
 
-    # ---- Bug 截图跨轮缓存 ----
-    # H5 首轮图片直传 Dify，不经过 120 wecom 后端；写飞书发生在后续确认轮。
-    # 配置后，H5 会把原图按 Dify B conversation_id 缓存到 Bug API，供 /add 附件回取。
+    # ---- Bug v2 编排服务 ----
     bugtrack_api_base: str = ""
     bugtrack_image_cache_timeout: float = 20.0
+    bugtrack_orchestrator_mode: str = "off"
+    bugtrack_orchestrator_fallback_to_dify_b: bool = False
+    bugtrack_orchestrator_timeout: float = 45.0
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -268,6 +268,69 @@ function ChargeChatApp() {
   }, [messages.length, isSending, isMorePanelOpen])
 
   useEffect(() => {
+    if (!sessionId) return
+    let stopped = false
+    let polling = false
+
+    const pollNotifications = async () => {
+      if (stopped || polling || document.visibilityState === 'hidden') return
+      polling = true
+      try {
+        const params = new URLSearchParams({ session_id: sessionId })
+        const response = await fetch(`${apiBase}/api/notifications?${params.toString()}`)
+        if (!response.ok) return
+        const data = await response.json().catch(() => null)
+        const notifications: unknown[] = Array.isArray(data?.notifications) ? data.notifications : []
+        const valid = notifications.filter(
+          (item: unknown): item is { notification_id: string; message: string } => {
+            if (!item || typeof item !== 'object') return false
+            const value = item as { notification_id?: unknown; message?: unknown }
+            return typeof value.notification_id === 'string' && typeof value.message === 'string'
+          },
+        )
+        if (!valid.length || stopped) return
+
+        setMessages((previous) => {
+          const known = new Set(previous.map((message) => message.id))
+          const incoming = valid
+            .filter((item) => !known.has(`notification-${item.notification_id}`))
+            .map((item) => ({
+              id: `notification-${item.notification_id}`,
+              role: 'assistant' as const,
+              text: item.message,
+            }))
+          return incoming.length ? [...previous, ...incoming] : previous
+        })
+
+        await fetch(`${apiBase}/api/notifications/ack`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            notification_ids: valid.map((item) => item.notification_id),
+          }),
+        })
+      } catch {
+        // Progress notifications are retried on the next poll.
+      } finally {
+        polling = false
+      }
+    }
+
+    void pollNotifications()
+    const intervalId = window.setInterval(() => void pollNotifications(), 30_000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void pollNotifications()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stopped = true
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [apiBase, sessionId])
+
+  useEffect(() => {
     handleSendRef.current = handleSend
   })
 
@@ -413,6 +476,7 @@ function ChargeChatApp() {
       const fd = new FormData()
       fd.append('text', trimmed)
       fd.append('language', languageParams[lang])
+      fd.append('message_id', generateId())
       if (sessionId) fd.append('session_id', sessionId)
       if (file) fd.append('image', file)
       if (audioBlob) {

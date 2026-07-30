@@ -42,8 +42,8 @@ def test_session_ttl_expires_and_resets_state():
         router._store.pop(sid, None)
 
 
-def test_session_within_ttl_keeps_state():
-    """未超时 session -> 保留 active, 仅更新 conv。"""
+def test_session_within_ttl_normalizes_historical_b_state():
+    """未超时的历史 B 状态也只能续接 A conversation。"""
     sid = "test-ttl-fresh"
     router._store[sid] = {
         "state": {"active": "B", "conv_a": "keep-a", "conv_b": "keep-b"},
@@ -54,8 +54,9 @@ def test_session_within_ttl_keeps_state():
         with patch.object(DifyClient, "run_chatflow", AsyncMock(return_value=fake)):
             _run(router.chat(session_id=sid, text="还在吗", language="中文"))
         st = router._store[sid]["state"]
-        assert st["active"] == "B", "未过期不应重置 active"
-        assert st["conv_a"] == "keep-a", "未涉及的 conv_a 应保留"
+        assert st["active"] == "A"
+        assert st["conv_a"] == "updated-conv"
+        assert st["conv_b"] == ""
     finally:
         router._store.pop(sid, None)
 
@@ -86,14 +87,18 @@ def test_session_ttl_lazy_cleanup_evicts_expired():
         # 未过期的 fresh 项保留 (ts 刚写入 > cutoff)
         assert fresh_sid in router._store, "未过期项不应被清理"
     finally:
-        for k in [k for k in list(router._store) if k.startswith(stale_prefix) or k == fresh_sid]:
+        for k in [
+            k
+            for k in list(router._store)
+            if k.startswith(stale_prefix) or k == fresh_sid
+        ]:
             router._store.pop(k, None)
 
 
 def test_session_restores_route_from_relational_store_after_process_restart():
     sid = "test-route-restore"
     router._store.pop(sid, None)
-    fake = {"answer": "继续确认。", "conversation_id": "conv-b-restored-next"}
+    fake = {"answer": "继续确认。", "conversation_id": "conv-a-restored-next"}
     try:
         with (
             patch.object(
@@ -108,11 +113,14 @@ def test_session_restores_route_from_relational_store_after_process_restart():
                 ),
             ),
             patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
-            patch.object(DifyClient, "run_chatflow", AsyncMock(return_value=fake)) as run,
+            patch.object(
+                DifyClient, "run_chatflow", AsyncMock(return_value=fake)
+            ) as run,
         ):
             _run(router.chat(session_id=sid, text="确认", language="中文"))
-        assert run.await_args.kwargs["conversation_id"] == "conv-b-restored"
-        assert router._store[sid]["state"]["active"] == "B"
-        assert router._store[sid]["state"]["conv_b"] == "conv-b-restored-next"
+        assert run.await_args.kwargs["conversation_id"] == "conv-a-restored"
+        assert router._store[sid]["state"]["active"] == "A"
+        assert router._store[sid]["state"]["conv_a"] == "conv-a-restored-next"
+        assert router._store[sid]["state"]["conv_b"] == ""
     finally:
         router._store.pop(sid, None)

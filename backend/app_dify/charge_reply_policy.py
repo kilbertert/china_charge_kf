@@ -63,12 +63,35 @@ class ChargeReplyPolicy:
         self._exhausted_reply = clarification.get("exhausted_reply") or {}
 
         routing = data.get("routing") or {}
-        self._bug_terms = tuple(str(item).lower() for item in routing.get("bug_terms") or [])
+        self._non_bug_marker_reply = routing.get("non_bug_marker_reply") or {}
+        self._knowledge_marker_reply = routing.get("knowledge_marker_reply") or {}
+        self._code_info_terms = tuple(
+            str(item).lower() for item in routing.get("code_info_terms") or []
+        )
+        self._code_info_reply = routing.get("code_info_reply") or {}
+        self._bug_terms = tuple(
+            str(item).lower() for item in routing.get("bug_terms") or []
+        )
         self._progress_terms = tuple(
             str(item).lower() for item in routing.get("progress_terms") or []
         )
         self._inability_terms = tuple(
             str(item).lower() for item in routing.get("inability_terms") or []
+        )
+        self._capability_terms = tuple(
+            str(item).lower() for item in routing.get("capability_terms") or []
+        )
+        self._knowledge_question_terms = tuple(
+            str(item).lower() for item in routing.get("knowledge_question_terms") or []
+        )
+        self._strong_incident_terms = tuple(
+            str(item).lower() for item in routing.get("strong_incident_terms") or []
+        )
+        self._informational_terms = tuple(
+            str(item).lower() for item in routing.get("informational_terms") or []
+        )
+        self._incident_terms = tuple(
+            str(item).lower() for item in routing.get("incident_terms") or []
         )
         self._attachment_bug_terms = tuple(
             str(item).lower() for item in routing.get("attachment_bug_terms") or []
@@ -78,6 +101,7 @@ class ChargeReplyPolicy:
         self._billing_matchers = matchers.get("billing_templates") or {}
         self._fault_repair_matchers = matchers.get("user_fault_repair") or {}
         self._order_export_matchers = matchers.get("order_export") or {}
+        self._order_status_matchers = matchers.get("order_status") or {}
 
         knowledge = data.get("verified_knowledge") or {}
         self._billing = knowledge.get("billing_templates") or {}
@@ -89,8 +113,22 @@ class ChargeReplyPolicy:
         return "en" if (language or "").lower().startswith("en") else "zh"
 
     @staticmethod
+    def _effective_language(text: str, language: str) -> str:
+        if (language or "").strip():
+            return language
+        if re.search(r"[\u4e00-\u9fff]", text or ""):
+            return "zh"
+        if re.search(r"[A-Za-z]", text or ""):
+            return "en"
+        return "zh"
+
+    @staticmethod
     def _normalize(text: str) -> str:
-        return re.sub(r"[\s，。！？、,.!?;；:：'\"“”‘’]+", "", (text or "").lower())
+        return re.sub(
+            r"[\s，。！？、,.!?;；:：'\"“”‘’\-_/()（）]+",
+            "",
+            (text or "").lower(),
+        )
 
     def _security_response(self, text: str, language: str) -> PolicyReply | None:
         if any(pattern.search(text or "") for pattern in self._refuse_patterns):
@@ -105,7 +143,27 @@ class ChargeReplyPolicy:
 
     @staticmethod
     def _has_any(query: str, terms: tuple[str, ...]) -> bool:
-        return any(term in query for term in terms)
+        if any(term in query for term in terms):
+            return True
+        normalized_query = ChargeReplyPolicy._normalize(query)
+        return any(
+            normalized_term in normalized_query
+            for term in terms
+            if (normalized_term := ChargeReplyPolicy._normalize(term))
+        )
+
+    @staticmethod
+    def _count_matches(query: str, terms: tuple[str, ...]) -> int:
+        normalized_query = ChargeReplyPolicy._normalize(query)
+        return sum(
+            1
+            for term in terms
+            if term in query
+            or (
+                (normalized_term := ChargeReplyPolicy._normalize(term))
+                and normalized_term in normalized_query
+            )
+        )
 
     def _reply(
         self,
@@ -122,7 +180,9 @@ class ChargeReplyPolicy:
         query = (text or "").lower()
         match_terms = self._terms(self._fault_repair_matchers, "match_terms")
         intent_terms = self._terms(self._fault_repair_matchers, "intent_terms")
-        if not self._has_any(query, match_terms) or not self._has_any(query, intent_terms):
+        if not self._has_any(query, match_terms) or not self._has_any(
+            query, intent_terms
+        ):
             return None
         return self._reply(
             self._fault_repair.get("replies") or {},
@@ -142,7 +202,11 @@ class ChargeReplyPolicy:
             ("replacement_terms", "replacement", "verified_billing_replacement"),
             ("activation_terms", "activation", "verified_billing_activation"),
             ("association_terms", "association", "verified_billing_association"),
-            ("startup_balance_terms", "startup_balance", "verified_billing_startup_balance"),
+            (
+                "startup_balance_terms",
+                "startup_balance",
+                "verified_billing_startup_balance",
+            ),
             ("time_of_use_terms", "time_of_use", "verified_billing_time_of_use"),
             ("setup_terms", "setup", "verified_billing_setup"),
             ("location_terms", "location", "verified_billing_location"),
@@ -164,7 +228,9 @@ class ChargeReplyPolicy:
         query = (text or "").lower()
         match_terms = self._terms(self._order_export_matchers, "match_terms")
         order_terms = self._terms(self._order_export_matchers, "order_terms")
-        if not self._has_any(query, match_terms) or not self._has_any(query, order_terms):
+        if not self._has_any(query, match_terms) or not self._has_any(
+            query, order_terms
+        ):
             return None
         return self._reply(
             self._order_management.get("replies") or {},
@@ -172,6 +238,31 @@ class ChargeReplyPolicy:
             language,
             "verified_order_export",
         )
+
+    def _order_status_response(self, text: str, language: str) -> PolicyReply | None:
+        query = (text or "").lower()
+        match_terms = self._terms(self._order_status_matchers, "match_terms")
+        intent_terms = self._terms(self._order_status_matchers, "intent_terms")
+        if not self._has_any(query, match_terms) or not self._has_any(
+            query, intent_terms
+        ):
+            return None
+        return self._reply(
+            self._order_management.get("replies") or {},
+            "status",
+            language,
+            "verified_order_status",
+        )
+
+    def _code_info_response(self, text: str, language: str) -> PolicyReply | None:
+        query = (text or "").lower()
+        if not self._has_any(query, self._code_info_terms):
+            return None
+        if not self.blocks_bug_route(query):
+            return None
+        lang = self._language_key(language)
+        reply = self._code_info_reply.get(lang) or self._code_info_reply.get("zh")
+        return PolicyReply(str(reply), "non_bug_code_info") if reply else None
 
     def route_target(
         self,
@@ -186,14 +277,63 @@ class ChargeReplyPolicy:
         query = (text or "").strip().lower()
         if self._has_any(query, self._progress_terms):
             return "B"
-        if self._has_any(query, self._bug_terms):
-            return "B"
-        capability_question = any(term in query for term in ("能不能", "可不可以", "是否可以"))
-        if not capability_question and self._has_any(query, self._inability_terms):
-            return "B"
         if has_attachments and self._has_any(query, self._attachment_bug_terms):
             return "B"
+        if self.blocks_bug_route(query):
+            return None
+        has_inability = self._has_any(query, self._inability_terms)
+        bug_hits = self._count_matches(query, self._bug_terms)
+        capability_question = self._has_any(query, self._capability_terms)
+        if bug_hits or (has_inability and not capability_question):
+            return "B"
         return None
+
+    def blocks_bug_route(self, text: str) -> bool:
+        """Return whether the query is explicitly informational/capability-only."""
+        query = (text or "").strip().lower()
+        capability_question = self._has_any(query, self._capability_terms) or (
+            ("支持" in query and query.rstrip("？?").endswith("吗"))
+            or ("support" in query and query.rstrip().endswith("?"))
+        )
+        has_inability = self._has_any(query, self._inability_terms)
+        bug_hits = self._count_matches(query, self._bug_terms)
+        has_incident_context = self._has_any(query, self._incident_terms)
+        has_strong_incident = self._has_any(query, self._strong_incident_terms)
+        informational_question = self._has_any(query, self._informational_terms)
+        knowledge_question = self._has_any(query, self._knowledge_question_terms)
+
+        if capability_question:
+            return True
+        if knowledge_question and not has_strong_incident:
+            return True
+        if (
+            informational_question
+            and not has_incident_context
+            and not has_inability
+            and bug_hits <= 1
+        ):
+            return True
+        return False
+
+    def non_bug_marker_reply(self, language: str, text: str = "") -> str:
+        language = self._effective_language(text, language)
+        lang = self._language_key(language)
+        query = (text or "").strip().lower()
+        capability_question = self._has_any(query, self._capability_terms) or (
+            ("支持" in query and query.rstrip("？?").endswith("吗"))
+            or ("support" in query and query.rstrip().endswith("?"))
+        )
+        if capability_question or self._has_any(query, self._knowledge_question_terms):
+            reply = self._knowledge_marker_reply.get(
+                lang
+            ) or self._knowledge_marker_reply.get("zh")
+            if reply:
+                return str(reply)
+        return str(
+            self._non_bug_marker_reply.get(lang)
+            or self._non_bug_marker_reply.get("zh")
+            or "抱歉，未生成有效回复，请补充具体问题。"
+        )
 
     def _is_vague(self, text: str) -> bool:
         query = (text or "").strip().lower()
@@ -230,7 +370,11 @@ class ChargeReplyPolicy:
             )
 
         next_count = vague_count + 1
-        prompts = self._clarification_prompts.get(lang) or self._clarification_prompts.get("zh") or []
+        prompts = (
+            self._clarification_prompts.get(lang)
+            or self._clarification_prompts.get("zh")
+            or []
+        )
         prompt = prompts[min(next_count - 1, len(prompts) - 1)]
         return PolicyReply(
             str(prompt),
@@ -249,11 +393,16 @@ class ChargeReplyPolicy:
         vague_count: int,
         vague_exhausted: bool,
     ) -> PolicyReply | None:
+        language = self._effective_language(text, language)
         if response := self._security_response(text, language):
             return response
         if has_attachments:
             return None
+        if response := self._code_info_response(text, language):
+            return response
         if response := self._fault_repair_response(text, language):
+            return response
+        if response := self._order_status_response(text, language):
             return response
         if response := self._order_export_response(text, language):
             return response
