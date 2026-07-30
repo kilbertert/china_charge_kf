@@ -36,6 +36,7 @@ def _post(
     *,
     message_id: str,
     image: bool = False,
+    action_id: str = "",
 ):
     files = None
     if image:
@@ -47,6 +48,7 @@ def _post(
             "session_id": session_id,
             "message_id": message_id,
             "language": "中文",
+            "action_id": action_id,
         },
         files=files,
     )
@@ -78,6 +80,21 @@ def _submitted_result() -> dict:
         "fallback_required": False,
         "fallback_text": "",
         "sync_pending": False,
+    }
+
+
+def _suspended_result() -> dict:
+    return {
+        "success": True,
+        "assistant_text": "问题反馈草稿已暂停并保留。",
+        "state": "suspended",
+        "draft_id": "draft-v2",
+        "continue_session": False,
+        "fallback_required": False,
+        "actions": [
+            {"id": "bug.resume", "label": "继续反馈", "style": "primary"},
+            {"id": "bug.cancel", "label": "取消反馈", "style": "secondary"},
+        ],
     }
 
 
@@ -578,5 +595,101 @@ def test_off_mode_does_not_restore_legacy_b_route() -> None:
         dify.assert_not_awaited()
         assert router._store[sid]["state"]["active"] == "A"
         assert router._store[sid]["state"]["conv_b"] == ""
+    finally:
+        router._store.pop(sid, None)
+
+
+def test_verified_faq_pauses_active_draft_then_answers_without_v2_patch() -> None:
+    sid = "m5-h5-pause-faq"
+    fake = FakeBugOrchestrator(result=_suspended_result())
+    router._store[sid] = {
+        "state": {"active": "A", "conv_a": "", "conv_b": "", "bug_v2_active": True},
+        "ts": time.monotonic(),
+    }
+    try:
+        with (
+            patch.object(settings, "bugtrack_orchestrator_mode", "active"),
+            patch.object(router, "_bug_orchestrator", fake),
+            patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+            patch.object(DifyClient, "run_chatflow", AsyncMock()) as dify,
+        ):
+            body = _post("PC后台的计费模板入口在哪里？", sid, message_id="pause-faq")
+
+        assert "充电桩 > 计费管理 > 充电计费模板" in body["assistant_text"]
+        assert body["intent"]["intent"] == "qa"
+        assert [item["id"] for item in body["actions"]] == ["bug.resume", "bug.cancel"]
+        assert fake.message.await_args.kwargs["event"] == "SUSPEND"
+        dify.assert_not_awaited()
+        state = router._store[sid]["state"]
+        assert state["bug_v2_active"] is False
+        assert state["bug_v2_suspended"] is True
+    finally:
+        router._store.pop(sid, None)
+
+
+def test_suspended_draft_resumes_only_through_explicit_action() -> None:
+    sid = "m5-h5-resume"
+    fake = FakeBugOrchestrator(result=_ready_result())
+    router._store[sid] = {
+        "state": {
+            "active": "A",
+            "conv_a": "",
+            "conv_b": "",
+            "bug_v2_active": False,
+            "bug_v2_suspended": True,
+        },
+        "ts": time.monotonic(),
+    }
+    try:
+        with (
+            patch.object(settings, "bugtrack_orchestrator_mode", "active"),
+            patch.object(router, "_bug_orchestrator", fake),
+            patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+        ):
+            body = _post("", sid, message_id="resume", action_id="bug.resume")
+
+        assert "确认提交" in body["assistant_text"]
+        assert fake.message.await_args.kwargs["event"] == "RESUME"
+        state = router._store[sid]["state"]
+        assert state["bug_v2_active"] is True
+        assert state["bug_v2_suspended"] is False
+    finally:
+        router._store.pop(sid, None)
+
+
+def test_explicit_meta_intent_returns_structured_route_actions() -> None:
+    sid = "m5-h5-route-choice"
+    router._store.pop(sid, None)
+    try:
+        body = _post("我要咨询", sid, message_id="route-choice")
+        assert body["intent"]["intent"] == "qa"
+        assert [item["id"] for item in body["actions"]] == ["route.qa", "route.bug"]
+    finally:
+        router._store.pop(sid, None)
+
+
+def test_suspended_draft_cannot_be_overwritten_by_new_bug_text() -> None:
+    sid = "m5-h5-suspended-new-bug"
+    fake = FakeBugOrchestrator(result=_ready_result())
+    router._store[sid] = {
+        "state": {
+            "active": "A",
+            "conv_a": "",
+            "conv_b": "",
+            "bug_v2_active": False,
+            "bug_v2_suspended": True,
+        },
+        "ts": time.monotonic(),
+    }
+    try:
+        with (
+            patch.object(settings, "bugtrack_orchestrator_mode", "active"),
+            patch.object(router, "_bug_orchestrator", fake),
+        ):
+            body = _post("订单结算失败", sid, message_id="new-bug")
+
+        assert "已暂停" in body["assistant_text"]
+        assert [item["id"] for item in body["actions"]] == ["bug.resume", "bug.cancel"]
+        fake.message.assert_not_awaited()
     finally:
         router._store.pop(sid, None)

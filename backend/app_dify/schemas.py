@@ -18,6 +18,19 @@ class MediaItem(BaseModel):
     description: Optional[str] = None
 
 
+class ActionItem(BaseModel):
+    id: str
+    label: str
+    style: Literal["primary", "secondary", "danger"] = "secondary"
+
+
+class IntentPayload(BaseModel):
+    intent: Literal["qa", "bug_report", "bug_progress", "mixed"]
+    confidence: float = Field(ge=0, le=1)
+    entities: dict[str, str] = Field(default_factory=dict)
+    reason: str = ""
+
+
 class ChatResponse(BaseModel):
     """对外响应结构 — 与 app/schemas.py 同形,前端可零改动切换。"""
 
@@ -33,6 +46,8 @@ class ChatResponse(BaseModel):
         ),
     )
     raw: Optional[dict] = Field(default=None, description="Raw workflow response (optional)")
+    intent: Optional[IntentPayload] = None
+    actions: list[ActionItem] = Field(default_factory=list)
     session_id: Optional[str] = Field(
         default=None,
         description="会话标识; 首次请求可不传(后端生成并返回), 后续请求需回传以续接多轮与 A/B 路由状态。",

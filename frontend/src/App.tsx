@@ -95,6 +95,12 @@ type MediaItem = {
   description?: string
 }
 
+type ChatAction = {
+  id: string
+  label: string
+  style?: 'primary' | 'secondary' | 'danger'
+}
+
 type ChatMessage = {
   id: string
   role: ChatRole
@@ -102,6 +108,7 @@ type ChatMessage = {
   imagePreviewUrl?: string
   audioUrl?: string
   media?: MediaItem[]
+  actions?: ChatAction[]
 }
 
 const translations = {
@@ -476,20 +483,22 @@ function ChargeChatApp() {
     }
   }
 
-  async function handleSend() {
+  async function handleSend(options: { actionId?: string } = {}) {
     if (isSending) return
     const trimmed = text.trim()
-    if (!trimmed && !file && !audioBlob) return
+    const actionId = options.actionId || ''
+    if (!trimmed && !file && !audioBlob && !actionId) return
 
-    const userMsg: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      text: trimmed || undefined,
-      imagePreviewUrl: imagePreviewUrl || undefined,
-      audioUrl: audioUrl || undefined,
+    if (!actionId) {
+      const userMsg: ChatMessage = {
+        id: generateId(),
+        role: 'user',
+        text: trimmed || undefined,
+        imagePreviewUrl: imagePreviewUrl || undefined,
+        audioUrl: audioUrl || undefined,
+      }
+      setMessages((prev) => [...prev, userMsg])
     }
-
-    setMessages((prev) => [...prev, userMsg])
     setIsSending(true)
 
     try {
@@ -497,6 +506,7 @@ function ChargeChatApp() {
       fd.append('text', trimmed)
       fd.append('language', languageParams[lang])
       fd.append('message_id', generateId())
+      if (actionId) fd.append('action_id', actionId)
       if (sessionId) fd.append('session_id', sessionId)
       if (file) fd.append('image', file)
       if (audioBlob) {
@@ -530,6 +540,13 @@ function ChargeChatApp() {
 
       const assistantText = (data && data.assistant_text) || ''
       const media: MediaItem[] = Array.isArray(data?.media) ? data.media : []
+      const actions: ChatAction[] = Array.isArray(data?.actions)
+        ? data.actions.filter((item: unknown): item is ChatAction => {
+            if (!item || typeof item !== 'object') return false
+            const value = item as Record<string, unknown>
+            return typeof value.id === 'string' && typeof value.label === 'string'
+          })
+        : []
       setMessages((prev) => [
         ...prev,
         {
@@ -537,6 +554,7 @@ function ChargeChatApp() {
           role: 'assistant',
           text: String(assistantText) || (media.length ? '' : t.emptyResponse),
           media: media.length ? media : undefined,
+          actions: actions.length ? actions : undefined,
         },
       ])
     } catch (e) {
@@ -614,41 +632,58 @@ function ChargeChatApp() {
         {messages.map((m) => (
           <div key={m.id} className={`row ${m.role === 'user' ? 'user' : 'assistant'}`}>
             {m.role === 'assistant' ? <Avatar role="assistant" /> : null}
-            <div className={`bubble ${m.imagePreviewUrl ? 'imageBubble' : ''} ${m.media?.length ? 'mediaBubble' : ''}`}>
-              {m.imagePreviewUrl ? <img className="img" src={m.imagePreviewUrl} alt="User" /> : null}
-              {m.audioUrl ? (
-                <div className="voiceBubble">
-                  <audio className="audioMessage" src={m.audioUrl} controls />
-                </div>
-              ) : null}
-              {m.media?.length ? (
-                <div className="mediaList">
-                  {m.media.map((mi, idx) => (
-                    <div key={idx} className="mediaItem">
-                      {mi.type === 'image' ? (
-                        <img
-                          className="mediaImage"
-                          src={mi.url}
-                          alt={mi.description || ''}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <video
-                          className="mediaVideo"
-                          src={mi.url}
-                          controls
-                          preload="metadata"
-                          playsInline
-                        />
-                      )}
-                      {mi.description ? (
-                        <div className="mediaCaption">{mi.description}</div>
-                      ) : null}
-                    </div>
+            <div className="messageContent">
+              <div className={`bubble ${m.imagePreviewUrl ? 'imageBubble' : ''} ${m.media?.length ? 'mediaBubble' : ''}`}>
+                {m.imagePreviewUrl ? <img className="img" src={m.imagePreviewUrl} alt="User" /> : null}
+                {m.audioUrl ? (
+                  <div className="voiceBubble">
+                    <audio className="audioMessage" src={m.audioUrl} controls />
+                  </div>
+                ) : null}
+                {m.media?.length ? (
+                  <div className="mediaList">
+                    {m.media.map((mi, idx) => (
+                      <div key={idx} className="mediaItem">
+                        {mi.type === 'image' ? (
+                          <img
+                            className="mediaImage"
+                            src={mi.url}
+                            alt={mi.description || ''}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <video
+                            className="mediaVideo"
+                            src={mi.url}
+                            controls
+                            preload="metadata"
+                            playsInline
+                          />
+                        )}
+                        {mi.description ? (
+                          <div className="mediaCaption">{mi.description}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {m.text ? <div className="text">{m.text}</div> : null}
+              </div>
+              {m.role === 'assistant' && m.actions?.length ? (
+                <div className="messageActions" aria-label="可选操作">
+                  {m.actions.map((item) => (
+                    <button
+                      className={`messageAction ${item.style || 'secondary'}`}
+                      disabled={isSending}
+                      key={item.id}
+                      type="button"
+                      onClick={() => void handleSend({ actionId: item.id })}
+                    >
+                      {item.label}
+                    </button>
                   ))}
                 </div>
               ) : null}
-              {m.text ? <div className="text">{m.text}</div> : null}
             </div>
             {m.role === 'user' ? <Avatar role="user" /> : null}
           </div>
