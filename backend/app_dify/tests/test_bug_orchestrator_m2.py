@@ -130,6 +130,38 @@ def test_confirmation_turn_goes_directly_to_v2() -> None:
         router._store.pop(sid, None)
 
 
+def test_active_bug_session_never_falls_into_a_when_v2_is_off() -> None:
+    sid = "m4-h5-active-v2-off"
+    fake = FakeBugOrchestrator(result=_submitted_result())
+    router._store[sid] = {
+        "state": {
+            "active": "A",
+            "conv_a": "",
+            "conv_b": "",
+            "bug_v2_active": True,
+        },
+        "ts": time.monotonic(),
+    }
+    try:
+        with (
+            patch.object(settings, "bugtrack_orchestrator_mode", "off"),
+            patch.object(router, "_bug_orchestrator", fake),
+            patch.object(router, "_save_route_state", AsyncMock(return_value=True)),
+            patch.object(DifyClient, "run_chatflow", AsyncMock()) as dify,
+        ):
+            body = _post("确认提交", sid, message_id="msg-off-confirm")
+
+        assert "稍后重试" in body["assistant_text"]
+        fake.message.assert_not_awaited()
+        dify.assert_not_awaited()
+        state = router._store[sid]["state"]
+        assert state["bug_v2_active"] is True
+        assert state["active"] == "A"
+        assert state["conv_b"] == ""
+    finally:
+        router._store.pop(sid, None)
+
+
 def test_prequeue_fallback_never_routes_to_b() -> None:
     sid = "m2-h5-candidate-fallback"
     fallback_text = "Web 后台订单结算失败，点击重试后仍然报错"

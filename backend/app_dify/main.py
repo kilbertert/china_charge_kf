@@ -470,7 +470,14 @@ class ChatflowRouter:
         state["active"] = "A"
         state["conv_b"] = ""
         active = "A"
-        if self._bug_v2_enabled() and state.get("bug_v2_active"):
+        if state.get("bug_v2_active"):
+            if not self._bug_v2_enabled():
+                return await self._bug_v2_retry_response(
+                    session_id=session_id,
+                    state=state,
+                    language=lang,
+                    keep_session=True,
+                )
             if audio_bytes:
                 return await self._bug_v2_retry_response(
                     session_id=session_id,
