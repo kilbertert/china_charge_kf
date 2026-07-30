@@ -30,6 +30,7 @@ class BugOrchestratorClient:
         image_bytes: bytes | None = None,
         image_name: str = "",
         image_mime: str = "",
+        event: str = "",
     ) -> dict[str, Any]:
         if not self._api_base:
             raise BugOrchestratorError("Bug orchestrator API is not configured")
@@ -40,6 +41,7 @@ class BugOrchestratorClient:
             "user_key": session_id,
             "language": language,
             "message_id": message_id,
+            "event": event,
         }
         files = None
         if image_bytes:
@@ -96,6 +98,23 @@ class BugOrchestratorClient:
         if not isinstance(notifications, list):
             raise BugOrchestratorError("invalid notification response")
         return [item for item in notifications if isinstance(item, dict)]
+
+    async def progress(self, *, session_id: str) -> dict[str, Any]:
+        if not self._api_base:
+            raise BugOrchestratorError("Bug orchestrator API is not configured")
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(self._timeout)) as client:
+                response = await client.get(
+                    f"{self._api_base}/internal/bugtrack/v2/progress",
+                    params={"channel": "h5", "user_key": session_id, "session_id": session_id},
+                )
+            response.raise_for_status()
+            body = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise BugOrchestratorError(str(exc)) from exc
+        if not isinstance(body, dict) or not body.get("success"):
+            raise BugOrchestratorError("invalid progress response")
+        return body
 
     async def acknowledge_notifications(
         self, *, session_id: str, notification_ids: list[str]

@@ -19,6 +19,7 @@ from app_dify.bug_orchestrator_client import (
 )
 from app_dify.config import settings
 from app_dify.charge_reply_policy import get_charge_reply_policy
+from app_dify.customer_intent import action, classify_customer_intent
 from app_dify.dify_client import (
     DifyClient,
     DifyError,
@@ -27,7 +28,13 @@ from app_dify.dify_client import (
     strip_sys_markers,
 )
 from app_dify.response_parser import extract_assistant_text_and_media
-from app_dify.schemas import ChatResponse, MediaItem, NotificationAckRequest
+from app_dify.schemas import (
+    ActionItem,
+    ChatResponse,
+    IntentPayload,
+    MediaItem,
+    NotificationAckRequest,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -185,6 +192,7 @@ class ChatflowRouter:
         message_id: str,
         image_bytes: bytes | None,
         image_name: str | None,
+        event: str = "",
     ) -> dict[str, Any]:
         image_mime = ""
         if image_bytes:
@@ -199,6 +207,7 @@ class ChatflowRouter:
             image_bytes=image_bytes,
             image_name=image_name or "",
             image_mime=image_mime,
+            event=event,
         )
 
     async def _remember_state(self, session_id: str, state: dict[str, Any]) -> None:
@@ -217,7 +226,9 @@ class ChatflowRouter:
         result: dict[str, Any],
     ) -> dict[str, Any]:
         state["active"] = "A"
-        state["bug_v2_active"] = bool(result.get("continue_session"))
+        is_suspended = str(result.get("state") or "") == "suspended"
+        state["bug_v2_active"] = bool(result.get("continue_session")) and not is_suspended
+        state["bug_v2_suspended"] = is_suspended
         state["vague_count"] = 0
         state["vague_exhausted"] = False
         await self._remember_state(session_id, state)
@@ -237,6 +248,13 @@ class ChatflowRouter:
             "assistant_text": answer,
             "raw": normalized_raw,
             "conversation_id": conversation_id,
+            "intent": result.get("intent") or {
+                "intent": "bug_report",
+                "confidence": 1.0,
+                "entities": {},
+                "reason": "bug_state_machine",
+            },
+            "actions": result.get("actions") or [],
         }
 
     async def _bug_v2_retry_response(
@@ -250,6 +268,7 @@ class ChatflowRouter:
     ) -> dict[str, Any]:
         state["active"] = "A"
         state["bug_v2_active"] = keep_session
+        state["bug_v2_suspended"] = False
         state["vague_count"] = 0
         state["vague_exhausted"] = False
         await self._remember_state(session_id, state)
@@ -283,6 +302,13 @@ class ChatflowRouter:
                 }
             },
             "conversation_id": conversation_id,
+            "intent": {
+                "intent": "bug_report",
+                "confidence": 1.0,
+                "entities": {},
+                "reason": "bug_retry",
+            },
+            "actions": [],
         }
         return {
             "assistant_text": answer,
@@ -388,6 +414,7 @@ class ChatflowRouter:
                 "vague_count": vague_count,
                 "vague_exhausted": bool(route_data.get("vague_exhausted")),
                 "bug_v2_active": bool(route_data.get("bug_v2_active")),
+                "bug_v2_suspended": bool(route_data.get("bug_v2_suspended")),
             }
         except (httpx.HTTPError, ValueError) as exc:
             log.warning(
@@ -412,6 +439,7 @@ class ChatflowRouter:
                 "vague_count": max(0, int(state.get("vague_count") or 0)),
                 "vague_exhausted": bool(state.get("vague_exhausted")),
                 "bug_v2_active": bool(state.get("bug_v2_active")),
+                "bug_v2_suspended": bool(state.get("bug_v2_suspended")),
             },
         }
         try:
@@ -443,6 +471,7 @@ class ChatflowRouter:
         audio_name: str | None = None,
         language: str = "",
         message_id: str = "",
+        action_id: str = "",
     ) -> dict[str, Any]:
         query = (text or "").strip() or "收到您的消息"
         inputs: dict[str, Any] = {}
@@ -464,12 +493,82 @@ class ChatflowRouter:
                 "conv_a": "",
                 "conv_b": "",
                 "bug_v2_active": False,
+                "bug_v2_suspended": False,
             }
 
         # M4: historical route sessions may say B, but B is no longer a live app.
         state["active"] = "A"
         state["conv_b"] = ""
         active = "A"
+        selected_action = (action_id or "").strip().lower()
+        intent = classify_customer_intent(
+            self._reply_policy,
+            text=query if text.strip() else "",
+            language=lang,
+            has_attachments=bool(image_bytes or audio_bytes),
+        )
+        explicit_events = {
+            "bug.confirm_submit": "CONFIRM_SUBMIT",
+            "bug.confirm_match": "CONFIRM_MATCH",
+            "bug.reject_match": "REJECT_MATCH",
+            "bug.cancel": "CANCEL",
+            "bug.resume": "RESUME",
+        }
+        if selected_action == "route.qa":
+            state["vague_count"] = 0
+            state["vague_exhausted"] = False
+            await self._remember_state(session_id, state)
+            answer = "请直接发送你想查询的功能、入口或使用问题。"
+            return {
+                "assistant_text": answer,
+                "raw": {"data": {"outputs": {"answer": answer}}},
+                "conversation_id": str(state.get("conv_a") or ""),
+                "intent": {"intent": "qa", "confidence": 1.0, "entities": {}, "reason": "user_action"},
+                "actions": [],
+            }
+        if selected_action == "route.bug":
+            intent = classify_customer_intent(
+                self._reply_policy, text="页面报错", language=lang
+            )
+            if not self._bug_v2_enabled():
+                return await self._bug_v2_retry_response(
+                    session_id=session_id, state=state, language=lang, keep_session=False
+                )
+            result = await self._run_bug_v2(
+                session_id=session_id,
+                query="",
+                language=lang,
+                message_id=message_id,
+                image_bytes=None,
+                image_name=None,
+                event="START_REPORT",
+            )
+            return await self._finish_bug_v2(
+                session_id=session_id, state=state, result=result
+            )
+
+        if state.get("bug_v2_suspended") and (
+            selected_action == "bug.resume"
+            or re.sub(r"\s+", "", query.lower())
+            in {"继续反馈", "恢复反馈", "继续提交", "resume"}
+        ):
+            if not self._bug_v2_enabled():
+                return await self._bug_v2_retry_response(
+                    session_id=session_id, state=state, language=lang, keep_session=False
+                )
+            result = await self._run_bug_v2(
+                session_id=session_id,
+                query="",
+                language=lang,
+                message_id=message_id,
+                image_bytes=None,
+                image_name=None,
+                event="RESUME",
+            )
+            return await self._finish_bug_v2(
+                session_id=session_id, state=state, result=result
+            )
+
         if state.get("bug_v2_active"):
             if not self._bug_v2_enabled():
                 return await self._bug_v2_retry_response(
@@ -486,40 +585,154 @@ class ChatflowRouter:
                     keep_session=True,
                     audio_unsupported=True,
                 )
-            try:
-                v2_result = await self._run_bug_v2(
-                    session_id=session_id,
-                    query=query,
-                    language=lang,
-                    message_id=message_id,
-                    image_bytes=image_bytes,
-                    image_name=image_name,
-                )
-            except BugOrchestratorError as exc:
-                log.error(
-                    "[ROUTER] Bug v2 continuation failed session=%s error=%s",
-                    session_id[:12],
-                    str(exc)[:160],
-                )
+            # A high-confidence knowledge/topic-switch message pauses the draft
+            # before it reaches v2. Progress lookup remains read-only and does
+            # not mutate the active draft.
+            if intent.intent == "bug_progress":
+                progress_method = getattr(self._bug_orchestrator, "progress", None)
+                if not callable(progress_method):
+                    # Compatibility for pre-M5 adapters. The production client
+                    # always implements the read-only endpoint above.
+                    v2_result = await self._run_bug_v2(
+                        session_id=session_id,
+                        query=query,
+                        language=lang,
+                        message_id=message_id,
+                        image_bytes=None,
+                        image_name=None,
+                    )
+                    return await self._finish_bug_v2(
+                        session_id=session_id, state=state, result=v2_result
+                    )
+                try:
+                    progress = await progress_method(session_id=session_id)
+                except (BugOrchestratorError, AttributeError) as exc:
+                    log.warning("[ROUTER] Bug progress lookup failed: %s", str(exc)[:120])
+                    progress = {"assistant_text": "暂时无法查询问题进度，请稍后重试。", "actions": []}
+                answer = str(progress.get("assistant_text") or "暂时没有可显示的进度。")
+                return {
+                    "assistant_text": answer,
+                    "raw": {"data": {"outputs": {"answer": answer, "bug_progress": progress}}},
+                    "conversation_id": str(state.get("conv_a") or ""),
+                    "intent": intent.to_dict(),
+                    "actions": progress.get("actions") or [],
+                }
+            if (
+                selected_action == "bug.suspend"
+                or (intent.intent == "qa" and intent.confidence >= 0.9 and not image_bytes and not audio_bytes)
+            ):
+                try:
+                    suspended = await self._run_bug_v2(
+                        session_id=session_id, query="", language=lang,
+                        message_id=message_id, image_bytes=None, image_name=None,
+                        event="SUSPEND",
+                    )
+                except BugOrchestratorError as exc:
+                    log.error("[ROUTER] Bug v2 suspend failed: %s", str(exc)[:160])
+                    return await self._bug_v2_retry_response(
+                        session_id=session_id, state=state, language=lang, keep_session=True
+                    )
+                state["bug_v2_active"] = False
+                state["bug_v2_suspended"] = True
+                await self._remember_state(session_id, state)
+                if selected_action == "bug.suspend":
+                    return await self._finish_bug_v2(
+                        session_id=session_id, state=state, result=suspended
+                    )
+            else:
+                event = explicit_events.get(selected_action, "")
+                v2_query = "" if event else query
+                try:
+                    v2_result = await self._run_bug_v2(
+                        session_id=session_id,
+                        query=v2_query,
+                        language=lang,
+                        message_id=message_id,
+                        image_bytes=image_bytes,
+                        image_name=image_name,
+                        event=event,
+                    )
+                except BugOrchestratorError as exc:
+                    log.error(
+                        "[ROUTER] Bug v2 continuation failed session=%s error=%s",
+                        session_id[:12],
+                        str(exc)[:160],
+                    )
+                    return await self._bug_v2_retry_response(
+                        session_id=session_id,
+                        state=state,
+                        language=lang,
+                        keep_session=True,
+                    )
+                if not v2_result.get("fallback_required"):
+                    return await self._finish_bug_v2(
+                        session_id=session_id,
+                        state=state,
+                        result=v2_result,
+                    )
+                state["bug_v2_active"] = False
                 return await self._bug_v2_retry_response(
                     session_id=session_id,
                     state=state,
                     language=lang,
-                    keep_session=True,
+                    keep_session=False,
                 )
-            if not v2_result.get("fallback_required"):
-                return await self._finish_bug_v2(
-                    session_id=session_id,
-                    state=state,
-                    result=v2_result,
+
+        if state.get("bug_v2_suspended") and selected_action == "bug.cancel":
+            try:
+                result = await self._run_bug_v2(
+                    session_id=session_id, query="", language=lang, message_id=message_id,
+                    image_bytes=None, image_name=None, event="CANCEL",
                 )
-            state["bug_v2_active"] = False
-            return await self._bug_v2_retry_response(
-                session_id=session_id,
-                state=state,
-                language=lang,
-                keep_session=False,
-            )
+            except BugOrchestratorError:
+                return await self._bug_v2_retry_response(
+                    session_id=session_id, state=state, language=lang, keep_session=False
+                )
+            return await self._finish_bug_v2(session_id=session_id, state=state, result=result)
+
+        if state.get("bug_v2_suspended") and intent.intent == "bug_report":
+            answer = "你有一份已暂停的问题反馈。请先继续原草稿，或取消后再提交新问题。"
+            actions = [
+                action("bug.resume", "继续反馈", "primary"),
+                action("bug.cancel", "取消反馈"),
+            ]
+            return {
+                "assistant_text": answer,
+                "raw": {"data": {"outputs": {"answer": answer, "intent": intent.to_dict(), "actions": actions}}},
+                "conversation_id": str(state.get("conv_a") or ""),
+                "intent": intent.to_dict(),
+                "actions": actions,
+            }
+
+        normalized_query = re.sub(r"[\s，。！？、,.!?;；:：]+", "", query.lower())
+        if (
+            not state.get("bug_v2_suspended")
+            and not selected_action
+            and normalized_query
+            in {
+                "我要咨询",
+                "咨询一下",
+                "我有问题",
+                "需要帮助",
+                "我要反馈",
+                "反馈问题",
+                "i need help",
+            }
+            and not image_bytes
+            and not audio_bytes
+        ):
+            answer = "你想查询解决方法，还是提交问题反馈？"
+            actions = [
+                action("route.qa", "查询解决方法", "primary"),
+                action("route.bug", "提交问题反馈"),
+            ]
+            return {
+                "assistant_text": answer,
+                "raw": {"data": {"outputs": {"answer": answer, "intent": intent.to_dict(), "actions": actions}}},
+                "conversation_id": str(state.get("conv_a") or ""),
+                "intent": intent.to_dict(),
+                "actions": actions,
+            }
 
         policy_reply = self._reply_policy.evaluate(
             text=query,
@@ -567,6 +780,11 @@ class ChatflowRouter:
                 "assistant_text": policy_reply.text,
                 "raw": normalized_raw,
                 "conversation_id": normalized_raw["conversation_id"],
+                "intent": intent.to_dict(),
+                "actions": (
+                    [action("bug.resume", "继续反馈", "primary"), action("bug.cancel", "取消反馈")]
+                    if state.get("bug_v2_suspended") else []
+                ),
             }
 
         target_app = self._reply_policy.route_target(
@@ -744,6 +962,11 @@ class ChatflowRouter:
             "assistant_text": answer,
             "raw": normalized_raw,
             "conversation_id": new_conv,
+            "intent": intent.to_dict(),
+            "actions": (
+                [action("bug.resume", "继续反馈", "primary"), action("bug.cancel", "取消反馈")]
+                if state.get("bug_v2_suspended") else []
+            ),
         }
 
 
@@ -825,6 +1048,7 @@ async def chat(
     language: str = Form(""),
     session_id: Optional[str] = Form(default=None),
     message_id: Optional[str] = Form(default=None),
+    action_id: Optional[str] = Form(default=None),
 ) -> ChatResponse:
     # session_id: 前端 localStorage 持久化; 首次不传则后端生成并回传
     sid = (session_id or "").strip() or f"h5-{uuid.uuid4().hex}"
@@ -873,6 +1097,7 @@ async def chat(
             audio_name=audio_name,
             language=_normalize_language(language),
             message_id=mid,
+            action_id=(action_id or "").strip(),
         )
     except InvalidImageError as e:
         return JSONResponse(
@@ -890,6 +1115,15 @@ async def chat(
             status_code=502,
             content={"detail": detail, "session_id": sid},
         )
+    except BugOrchestratorError as e:
+        log.error("Bug orchestrator error: %s", e)
+        return JSONResponse(
+            status_code=502,
+            content={
+                "detail": "Bug 提交服务暂时不可用，请稍后重试",
+                "session_id": sid,
+            },
+        )
 
     assistant_text, media = extract_assistant_text_and_media(
         result["raw"], preferred_key="output"
@@ -901,4 +1135,6 @@ async def chat(
         media=[MediaItem(**m) for m in media],
         raw=result["raw"],
         session_id=sid,
+        intent=IntentPayload(**result["intent"]) if result.get("intent") else None,
+        actions=[ActionItem(**item) for item in result.get("actions") or []],
     )
